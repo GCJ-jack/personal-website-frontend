@@ -1,38 +1,25 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { RootLayout } from "./app/layout/RootLayout";
-import { Page } from "./components/shared/Page";
+import { site } from "./data/site";
+import { BlogPage } from "./pages/Blog/BlogPage";
+import { HomePage } from "./pages/Home/HomePage";
+import { LivePage } from "./pages/Live/LivePage";
+import { ProjectsPage } from "./pages/Projects/ProjectsPage";
+import { StudyPage } from "./pages/Study/StudyPage";
 
 function App() {
   return (
-    <RootLayout
-      title="Guochao Jun"
-      description="Frontend Engineer · Minimal interfaces"
-    >
-      <Page
-        title="Hello"
-        subtitle="Minimal, professional, and calm."
-        intro="I design and build clean interfaces for thoughtful products."
-      >
-        <section>
-          <div className="card">
-            <h2>Focus</h2>
-            <p>
-              I specialize in modern web UI, design systems, and performance
-              tuning. I value clarity, constraint, and quiet confidence in
-              product experiences.
-            </p>
-          </div>
-        </section>
-        <section>
-          <div className="card">
-            <h2>Now</h2>
-            <p>
-              Currently building a personal site that highlights projects, live
-              shows, and technical writing.
-            </p>
-          </div>
-        </section>
-      </Page>
-    </RootLayout>
+    <BrowserRouter>
+      <RootLayout title={site.title} description={site.description}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/live" element={<LivePage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/study" element={<StudyPage />} />
+        </Routes>
+      </RootLayout>
+    </BrowserRouter>
   );
 }
 
