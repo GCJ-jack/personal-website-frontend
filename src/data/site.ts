@@ -1,5 +1,5 @@
 export const site = {
-  title: "郭超军",
+  title: "Notes",
   description: "Software Engineer · Minimal interfaces",
   footer: "All rights reserved.",
 };

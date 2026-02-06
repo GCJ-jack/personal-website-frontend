@@ -206,6 +206,34 @@ section:last-of-type {
   border-color: var(--color-text);
 }
 
+.form-status {
+  font-size: 0.9rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.form-status.success {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.form-status.error {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.comment-box {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+
+.comment-box h4 {
+  margin: 0;
+}
+
 .modal {
   border: none;
   padding: 0;
