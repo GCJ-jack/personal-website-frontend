@@ -1,16 +1,12 @@
-import { useState } from "react";
 import { Page } from "../../components/shared/Page";
-import { mindmaps, type Mindmap } from "../../data/mindmaps";
 import diaryPhoto from "../../assets/自拍.jpeg";
 
 export function BlogPage() {
-  const [activeMindmap, setActiveMindmap] = useState<Mindmap | null>(null);
-
   return (
     <Page
       title="Blog"
-      subtitle="Technical writing"
-      intro="Notes, essays, and technical deep dives."
+      subtitle="Diary & reflections"
+      intro="Personal notes, memories, and small moments."
     >
       <section>
         <div className="stack">
@@ -37,79 +33,48 @@ export function BlogPage() {
       </section>
 
       <section>
-        <div className="stack">
-          <div className="stack">
-            <h2>Mindmaps</h2>
-            <p className="small">
-              Browse, preview, and download study mindmaps.
-            </p>
+        <div className="grid-2">
+          <div className="card stack">
+            <h2>Leave a Message</h2>
+            <p className="small">Your message will be sent to my email.</p>
+            <form
+              className="form"
+              action="https://formspree.io/f/your-form-id"
+              method="POST"
+            >
+              <label className="form-field">
+                <span>Name</span>
+                <input name="name" type="text" placeholder="Your name" required />
+              </label>
+              <label className="form-field">
+                <span>Email</span>
+                <input name="email" type="email" placeholder="you@example.com" required />
+              </label>
+              <label className="form-field">
+                <span>Message</span>
+                <textarea name="message" rows={5} placeholder="Say hi..." required />
+              </label>
+              <button className="button" type="submit">Send</button>
+            </form>
           </div>
-          <div className="grid-3">
-            {mindmaps.map((map) => (
-              <div key={map.id} className="card stack">
-                <div className="stack">
-                  <h3>{map.title}</h3>
-                  {map.summary ? <p>{map.summary}</p> : null}
-                  {map.tags && map.tags.length ? (
-                    <div className="tags">
-                      {map.tags.map((tag) => (
-                        <span key={tag} className="tag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="small">Updated {map.updatedAt}</div>
-                </div>
-                <div className="card-actions">
-                  <button
-                    className="button"
-                    type="button"
-                    onClick={() => setActiveMindmap(map)}
-                  >
-                    Preview
-                  </button>
-                  <a className="button ghost" href={map.file} target="_blank" rel="noreferrer">
-                    Open
-                  </a>
-                  <a className="button ghost" href={map.file} download>
-                    Download
-                  </a>
-                </div>
-              </div>
-            ))}
+
+          <div className="card stack">
+            <h2>Subscribe</h2>
+            <p className="small">Get updates when new posts are published.</p>
+            <form
+              className="form"
+              action="https://formspree.io/f/your-form-id"
+              method="POST"
+            >
+              <label className="form-field">
+                <span>Email</span>
+                <input name="email" type="email" placeholder="you@example.com" required />
+              </label>
+              <button className="button" type="submit">Subscribe</button>
+            </form>
           </div>
         </div>
       </section>
-
-      {activeMindmap ? (
-        <dialog open className="modal">
-          <div className="modal-content">
-            <div className="modal-header">
-              <div>
-                <div className="small">Preview</div>
-                <h3>{activeMindmap.title}</h3>
-              </div>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => setActiveMindmap(null)}
-              >
-                Close
-              </button>
-            </div>
-            <object
-              data={activeMindmap.file}
-              type="application/pdf"
-              className="pdf-preview"
-            >
-              <p className="small">
-                Your browser cannot preview PDFs. Use Open or Download instead.
-              </p>
-            </object>
-          </div>
-        </dialog>
-      ) : null}
     </Page>
   );
 }

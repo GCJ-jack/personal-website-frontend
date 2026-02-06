@@ -31,7 +31,7 @@ export function HomePage() {
               <div className="stack">
                 <div>全名：郭超军</div>
                 <div>国家：中国</div>
-                <div>暂住：英国</div>
+                <div>暂住：中国</div>
               </div>
             </div>
           </div>
