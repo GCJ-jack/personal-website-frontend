@@ -122,6 +122,68 @@ CREATE TABLE live_videos (
 );
 ```
 
+## mindmaps
+
+Stores study mindmaps and learning resources.
+
+```sql
+CREATE TABLE mindmaps (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  summary TEXT,
+  file_url VARCHAR(512) NOT NULL,
+  cover_url VARCHAR(512),
+  updated_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## study_tags
+
+Optional tags for mindmaps.
+
+```sql
+CREATE TABLE study_tags (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(64) UNIQUE NOT NULL
+);
+```
+
+## mindmap_tags
+
+Many-to-many relation between mindmaps and tags.
+
+```sql
+CREATE TABLE mindmap_tags (
+  mindmap_id BIGINT NOT NULL,
+  tag_id BIGINT NOT NULL,
+  PRIMARY KEY (mindmap_id, tag_id),
+  CONSTRAINT fk_mindmap_tags_map
+    FOREIGN KEY (mindmap_id) REFERENCES mindmaps(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_mindmap_tags_tag
+    FOREIGN KEY (tag_id) REFERENCES study_tags(id)
+    ON DELETE CASCADE
+);
+```
+
+## admin_users
+
+Admin accounts for the management console.
+
+```sql
+CREATE TABLE admin_users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(128),
+  role ENUM('admin','editor') DEFAULT 'admin',
+  last_login_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
 ## Optional: comments
 
 If you want to store blog comments in DB.
