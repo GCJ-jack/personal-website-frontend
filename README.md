@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# Personal Website Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+基于 React + TypeScript + Vite 的个人网站前端项目，包含主页、现场演出、项目、博客与学习笔记等页面，支持可选的 API 数据源与表单提交。
 
-Currently, two official plugins are available:
+## Features
+- Pages: Home, Live, Projects, Blog, Study
+- Static data seeds with optional API overrides
+- Minimal design system using CSS tokens and utility classes
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
+- React 19 + React Router
+- TypeScript
+- Vite
+- ESLint
 
-## React Compiler
+## Getting Started
+1. Install dependencies
+   `npm install`
+2. Start dev server
+   `npm run dev`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Commands
+- `npm run dev` — start dev server
+- `npm run build` — typecheck + production build
+- `npm run lint` — run ESLint
+- `npm run preview` — preview production build
 
-## Expanding the ESLint configuration
+## Environment Variables (Optional)
+Create a `.env` file in the project root to enable live data:
+- `VITE_PROJECTS_API_URL` — projects list for `/projects`
+- `VITE_LIVE_API_URL` — live videos list for `/live`
+- `VITE_STUDY_API_URL` — mindmaps list for `/study`
+- `VITE_COMMENTS_API_URL` — comments form submission for `/blog`
+- `VITE_SUBSCRIBE_API_URL` — subscribe form submission for `/blog`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+If a variable is missing, the page uses local seed data or shows an error state for form submissions.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Project Structure
+- `src/main.tsx` app bootstrap and global styles
+- `src/App.tsx` routes and root layout
+- `src/app/layout/` layout components
+- `src/pages/` route pages
+- `src/components/` shared UI components
+- `src/data/` static content seeds
+- `src/styles/` tokens, typography, globals
+- `src/assets/` images
+- `public/` static files served as-is
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 说明（中文）
+- 路由与布局：`src/App.tsx`、`src/app/layout/`
+- 页面：`src/pages/*`
+- 数据种子：`src/data/*`
+- 样式：`src/styles/*`
+- 静态资源：`src/assets/` 与 `public/`
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+若需启用接口数据或表单提交，请配置 `.env` 中的 `VITE_*` 变量。
