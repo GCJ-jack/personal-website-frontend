@@ -6,33 +6,74 @@ export function BlogPage() {
   const [messageStatus, setMessageStatus] = useState<"idle" | "success" | "error">("idle");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "success" | "error">("idle");
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-    setStatus: React.Dispatch<React.SetStateAction<"idle" | "success" | "error">>
-  ) => {
+  const handleMessage = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setStatus("idle");
+    setMessageStatus("idle");
 
     const form = event.currentTarget;
-    const action = form.action;
+    const formData = new FormData(form);
+    const postId = String(formData.get("postId") ?? "");
+    const name = String(formData.get("name") ?? "");
+    const email = String(formData.get("email") ?? "");
+    const message = String(formData.get("message") ?? "");
+
+    const apiUrl = import.meta.env.VITE_COMMENTS_API_URL as string | undefined;
+    if (!apiUrl) {
+      setMessageStatus("error");
+      return;
+    }
 
     try {
-      const response = await fetch(action, {
+      const response = await fetch(apiUrl, {
         method: "POST",
-        body: new FormData(form),
         headers: {
-          Accept: "application/json",
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({ postId, name, email, message }),
       });
 
       if (response.ok) {
-        setStatus("success");
+        setMessageStatus("success");
         form.reset();
       } else {
-        setStatus("error");
+        setMessageStatus("error");
       }
     } catch {
-      setStatus("error");
+      setMessageStatus("error");
+    }
+  };
+
+  const handleSubscribe = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubscribeStatus("idle");
+
+    const form = event.currentTarget;
+    const emailInput = form.querySelector<HTMLInputElement>("input[name=\"email\"]");
+    const email = emailInput?.value ?? "";
+
+    const apiUrl = import.meta.env.VITE_SUBSCRIBE_API_URL as string | undefined;
+    if (!apiUrl) {
+      setSubscribeStatus("error");
+      return;
+    }
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, source: "blog" }),
+      });
+
+      if (response.ok) {
+        setSubscribeStatus("success");
+        form.reset();
+      } else {
+        setSubscribeStatus("error");
+      }
+    } catch {
+      setSubscribeStatus("error");
     }
   };
 
@@ -67,9 +108,7 @@ export function BlogPage() {
               <p className="small">Your message will be sent to my email.</p>
               <form
                 className="form"
-                action="https://formspree.io/f/your-form-id"
-                method="POST"
-                onSubmit={(event) => handleSubmit(event, setMessageStatus)}
+                onSubmit={handleMessage}
               >
                 <input type="hidden" name="postId" value="blog-01" />
                 <label className="form-field">
@@ -103,9 +142,7 @@ export function BlogPage() {
           <p className="small">Get updates when new posts are published.</p>
           <form
             className="form"
-            action="https://formspree.io/f/your-form-id"
-            method="POST"
-            onSubmit={(event) => handleSubmit(event, setSubscribeStatus)}
+            onSubmit={handleSubscribe}
           >
             <label className="form-field">
               <span>Email</span>

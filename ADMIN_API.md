@@ -12,6 +12,8 @@ VITE_PROJECTS_API_URL=https://your-domain.com/api/projects
 VITE_STUDY_API_URL=https://your-domain.com/api/mindmaps
 VITE_LIVE_API_URL=https://your-domain.com/api/live-videos
 VITE_BLOG_API_URL=https://your-domain.com/api/blog-posts
+VITE_COMMENTS_API_URL=https://your-domain.com/api/comments
+VITE_SUBSCRIBE_API_URL=https://your-domain.com/api/subscribers
 ```
 
 ## Projects Page
@@ -93,6 +95,68 @@ VITE_BLOG_API_URL=https://your-domain.com/api/blog-posts
     "tags": ["Diary"]
   }
 ]
+```
+
+## Blog Comments (Per Post)
+
+**Endpoint**: `POST /api/comments`
+
+**Request (JSON)**
+```
+{
+  "postId": "blog-01",
+  "name": "Your Name",
+  "email": "you@example.com",
+  "message": "Your message here."
+}
+```
+
+**Response (JSON)**
+```
+{
+  "ok": true,
+  "id": "comment-123",
+  "createdAt": "2026-02-08T12:00:00Z"
+}
+```
+
+**Error (JSON)**
+```
+{
+  "ok": false,
+  "error": "ValidationError",
+  "message": "Email is invalid."
+}
+```
+
+## Email Subscription
+
+**Endpoint**: `POST /api/subscribers`
+
+**Request (JSON)**
+```
+{
+  "email": "you@example.com",
+  "source": "blog"
+}
+```
+
+**Response (JSON)**
+```
+{
+  "ok": true,
+  "id": "subscriber-456",
+  "createdAt": "2026-02-08T12:00:00Z"
+}
+```
+
+**Error (JSON)**
+```
+{
+  "ok": false,
+  "error": "AlreadySubscribed",
+  "message": "Email already subscribed."
+}
 ```
 
 ## Notes
