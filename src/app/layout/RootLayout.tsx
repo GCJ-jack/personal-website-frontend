@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from "react";
+import { Outlet } from "react-router-dom";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
-
 
 type RootLayoutProps = PropsWithChildren<{
   title?: string;
@@ -17,7 +17,7 @@ export function RootLayout({
     <div>
       <Header title={title} description={description} />
 
-      <main>{children}</main>
+      <main>{children ?? <Outlet />}</main>
 
       <Footer title={title} />
     </div>
