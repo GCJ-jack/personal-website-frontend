@@ -190,6 +190,22 @@ error format in the Admin API Conventions section.
 }
 ```
 
+### Comments (Read-only for Admin)
+
+**List**: `GET /api/admin/comments`
+
+**Comment (JSON)**
+```
+{
+  "id": "comment-123",
+  "postId": 1,
+  "name": "Your Name",
+  "email": "you@example.com",
+  "message": "Your message here.",
+  "createdAt": "2026-02-08T12:00:00Z"
+}
+```
+
 ## Projects Page
 
 **Endpoint**: `GET /api/projects`
@@ -278,7 +294,7 @@ error format in the Admin API Conventions section.
 **Request (JSON)**
 ```
 {
-  "postId": "blog-01",
+  "postId": 1,
   "name": "Your Name",
   "email": "you@example.com",
   "message": "Your message here."
@@ -300,6 +316,30 @@ error format in the Admin API Conventions section.
   "ok": false,
   "error": "ValidationError",
   "message": "Email is invalid."
+}
+```
+
+### Get Comments (Per Post)
+
+**Endpoint**: `GET /api/comments`
+
+**Query Params**
+```
+postId=1
+```
+
+**Response (JSON)**
+```
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "comment-123",
+      "name": "Jack",
+      "message": "Great blog!",
+      "createdAt": "2026-02-08T12:00:00Z"
+    }
+  ]
 }
 ```
 

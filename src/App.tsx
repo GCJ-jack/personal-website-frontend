@@ -7,6 +7,7 @@ import { site } from "./data/site";
 import { AdminHomePage } from "./pages/Admin/AdminHomePage";
 import { AdminLoginPage } from "./pages/Admin/AdminLoginPage";
 import { AdminContentPage } from "./pages/Admin/AdminContentPage";
+import { AdminCommentsPage } from "./pages/Admin/AdminCommentsPage";
 import { AdminSectionPage } from "./pages/Admin/AdminSectionPage";
 import { BlogPage } from "./pages/Blog/BlogPage";
 import { HomePage } from "./pages/Home/HomePage";
@@ -39,6 +40,10 @@ function App() {
             <Route
               path="content"
               element={<AdminContentPage />}
+            />
+            <Route
+              path="comments"
+              element={<AdminCommentsPage />}
             />
             <Route
               path="media"

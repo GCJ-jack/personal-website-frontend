@@ -12,6 +12,15 @@ export type AdminBlogPost = {
   tags?: string[];
 };
 
+export type AdminComment = {
+  id: string;
+  postId: number;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
+};
+
 type AdminListResponse<T> = {
   ok: true;
   data: T[];
@@ -147,6 +156,13 @@ export function createAdminContentApi(baseUrl: string) {
         token,
       });
     },
+
+    async listComments(token?: string | null) {
+      const payload = await http.request<AdminListResponse<AdminComment> | AdminComment[]>(
+        "/comments",
+        { token },
+      );
+      return normalizeList(payload);
+    },
   };
 }
-

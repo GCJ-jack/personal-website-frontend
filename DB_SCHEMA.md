@@ -105,6 +105,72 @@ CREATE TABLE email_broadcast_logs (
 );
 ```
 
+## projects
+
+Stores portfolio projects.
+
+```sql
+CREATE TABLE projects (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  slug VARCHAR(100) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  summary VARCHAR(500),
+  cover_url VARCHAR(512),
+  project_year VARCHAR(20),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+## project_stack_items
+
+Stores stack tags for each project (one-to-many).
+
+```sql
+CREATE TABLE project_stack_items (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  stack_item VARCHAR(100) NOT NULL,
+  sort_order INT DEFAULT 0,
+  CONSTRAINT fk_project_stack_project
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE CASCADE
+);
+```
+
+## project_highlights
+
+Stores highlight bullets for each project (one-to-many).
+
+```sql
+CREATE TABLE project_highlights (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  highlight_text VARCHAR(500) NOT NULL,
+  sort_order INT DEFAULT 0,
+  CONSTRAINT fk_project_highlight_project
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE CASCADE
+);
+```
+
+## project_links
+
+Stores external links for each project (one-to-many).
+
+```sql
+CREATE TABLE project_links (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  label VARCHAR(100) NOT NULL,
+  href VARCHAR(1000) NOT NULL,
+  sort_order INT DEFAULT 0,
+  CONSTRAINT fk_project_link_project
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+    ON DELETE CASCADE
+);
+```
+
 ## live_videos
 
 Stores live show videos.
@@ -207,6 +273,9 @@ CREATE TABLE comments (
 
 ```sql
 CREATE INDEX idx_blog_posts_status_published_at ON blog_posts(status, published_at);
+CREATE INDEX idx_project_stack_project_id ON project_stack_items(project_id);
+CREATE INDEX idx_project_highlight_project_id ON project_highlights(project_id);
+CREATE INDEX idx_project_link_project_id ON project_links(project_id);
 CREATE INDEX idx_live_videos_date ON live_videos(date);
 CREATE INDEX idx_subscribers_status ON subscribers(status);
 ```
