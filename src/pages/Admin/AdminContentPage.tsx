@@ -7,35 +7,50 @@ import type { Project } from "../../data/projects";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type FormErrors = string[];
+type ContentPanel = "all" | "projects" | "live" | "mindmaps" | "blog";
+type UploadTarget = "projectCover" | "liveCover" | "liveFile" | "mindmapFile" | "blogCover";
+type UploadState = "idle" | "uploading" | "success" | "error";
 
-const emptyProject: Project = {
-  id: "",
-  name: "",
-  summary: "",
-  stack: [],
-  date: "",
-};
+function getTodayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-const emptyLiveVideo: LiveVideo = {
-  id: "",
-  title: "",
-  date: "",
-  file: "",
-};
+function createEmptyProject(): Project {
+  return {
+    id: "",
+    name: "",
+    summary: "",
+    stack: [],
+    date: getTodayDate(),
+  };
+}
 
-const emptyMindmap: Mindmap = {
-  id: "",
-  title: "",
-  file: "",
-  updatedAt: "",
-};
+function createEmptyLiveVideo(): LiveVideo {
+  return {
+    id: "",
+    title: "",
+    date: getTodayDate(),
+    file: "",
+  };
+}
 
-const emptyBlogPost: AdminBlogPost = {
-  id: "",
-  title: "",
-  date: "",
-  content: [],
-};
+function createEmptyMindmap(): Mindmap {
+  return {
+    id: "",
+    title: "",
+    file: "",
+    updatedAt: getTodayDate(),
+  };
+}
+
+function createEmptyBlogPost(): AdminBlogPost {
+  return {
+    id: "",
+    title: "",
+    date: getTodayDate(),
+    content: [],
+  };
+}
 
 function parseCsv(input: string) {
   return input
@@ -67,38 +82,94 @@ function buildErrors(errors: string[]) {
   return errors.filter(Boolean);
 }
 
+function extractUploadUrl(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const root = payload as Record<string, unknown>;
+  const data = typeof root.data === "object" && root.data !== null
+    ? root.data as Record<string, unknown>
+    : null;
+
+  const candidates = [
+    root.url,
+    root.fileUrl,
+    root.path,
+    root.location,
+    data?.url,
+    data?.fileUrl,
+    data?.path,
+    data?.location,
+  ];
+
+  for (const item of candidates) {
+    if (typeof item === "string" && item.trim()) {
+      return item.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveUploadDir(target: UploadTarget): string {
+  if (target === "projectCover") {
+    return "projects";
+  }
+  if (target === "mindmapFile") {
+    return "mindmaps";
+  }
+  return "live";
+}
+
 export function AdminContentPage() {
   const { token, isConfigured } = useAdminAuth();
   const apiUrl = import.meta.env.VITE_ADMIN_API_URL as string | undefined;
+  const uploadApiUrl = import.meta.env.VITE_ADMIN_UPLOAD_API_URL as string | undefined;
   const api = useMemo(() => (apiUrl ? createAdminContentApi(apiUrl) : null), [apiUrl]);
 
   const [projectState, setProjectState] = useState<LoadState>("idle");
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectForm, setProjectForm] = useState<Project>(emptyProject);
+  const [projectForm, setProjectForm] = useState<Project>(() => createEmptyProject());
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [projectFormErrors, setProjectFormErrors] = useState<FormErrors>([]);
 
   const [liveState, setLiveState] = useState<LoadState>("idle");
   const [liveError, setLiveError] = useState<string | null>(null);
   const [liveVideos, setLiveVideos] = useState<LiveVideo[]>([]);
-  const [liveForm, setLiveForm] = useState<LiveVideo>(emptyLiveVideo);
+  const [liveForm, setLiveForm] = useState<LiveVideo>(() => createEmptyLiveVideo());
   const [liveEditingId, setLiveEditingId] = useState<string | null>(null);
   const [liveFormErrors, setLiveFormErrors] = useState<FormErrors>([]);
 
   const [mindmapState, setMindmapState] = useState<LoadState>("idle");
   const [mindmapError, setMindmapError] = useState<string | null>(null);
   const [mindmaps, setMindmaps] = useState<Mindmap[]>([]);
-  const [mindmapForm, setMindmapForm] = useState<Mindmap>(emptyMindmap);
+  const [mindmapForm, setMindmapForm] = useState<Mindmap>(() => createEmptyMindmap());
   const [mindmapEditingId, setMindmapEditingId] = useState<string | null>(null);
   const [mindmapFormErrors, setMindmapFormErrors] = useState<FormErrors>([]);
 
   const [blogState, setBlogState] = useState<LoadState>("idle");
   const [blogError, setBlogError] = useState<string | null>(null);
   const [blogPosts, setBlogPosts] = useState<AdminBlogPost[]>([]);
-  const [blogForm, setBlogForm] = useState<AdminBlogPost>(emptyBlogPost);
+  const [blogForm, setBlogForm] = useState<AdminBlogPost>(() => createEmptyBlogPost());
   const [blogEditingId, setBlogEditingId] = useState<string | null>(null);
   const [blogFormErrors, setBlogFormErrors] = useState<FormErrors>([]);
+  const [activePanel, setActivePanel] = useState<ContentPanel>("all");
+  const [uploadState, setUploadState] = useState<Record<UploadTarget, UploadState>>({
+    projectCover: "idle",
+    liveCover: "idle",
+    liveFile: "idle",
+    mindmapFile: "idle",
+    blogCover: "idle",
+  });
+  const [uploadMessage, setUploadMessage] = useState<Record<UploadTarget, string>>({
+    projectCover: "",
+    liveCover: "",
+    liveFile: "",
+    mindmapFile: "",
+    blogCover: "",
+  });
 
   useEffect(() => {
     if (!api || !isConfigured) {
@@ -207,8 +278,8 @@ export function AdminContentPage() {
       liveForm.title ? "" : "Video title is required.",
       liveForm.date ? "" : "Video date is required.",
       liveForm.date && !isValidDate(liveForm.date) ? "Video date must be YYYY or YYYY-MM-DD." : "",
-      liveForm.file ? "" : "Video file URL is required.",
-      liveForm.file && !isValidUrl(liveForm.file) ? "Video file must be a URL or /path." : "",
+      liveForm.file ? "" : "Video file is required. Please upload it first.",
+      liveForm.file && !isValidUrl(liveForm.file) ? "Video file path is invalid." : "",
       liveCoverInput && !isValidUrl(liveCoverInput) ? "Cover must be a URL or /path." : "",
     ]);
     setLiveFormErrors(errors);
@@ -220,8 +291,8 @@ export function AdminContentPage() {
       mindmapForm.id ? "" : "Mindmap ID is required.",
       mindmapForm.id && !isValidId(mindmapForm.id) ? "Mindmap ID must be lowercase letters, numbers, or hyphens." : "",
       mindmapForm.title ? "" : "Mindmap title is required.",
-      mindmapForm.file ? "" : "Mindmap file URL is required.",
-      mindmapForm.file && !isValidUrl(mindmapForm.file) ? "Mindmap file must be a URL or /path." : "",
+      mindmapForm.file ? "" : "Mindmap file is required. Please upload it first.",
+      mindmapForm.file && !isValidUrl(mindmapForm.file) ? "Mindmap file path is invalid." : "",
       mindmapForm.updatedAt ? "" : "Updated At is required.",
       mindmapForm.updatedAt && !isValidDate(mindmapForm.updatedAt)
         ? "Updated At must be YYYY or YYYY-MM-DD."
@@ -272,7 +343,7 @@ export function AdminContentPage() {
       setProjects((prev) => [created, ...prev]);
     }
 
-    setProjectForm(emptyProject);
+    setProjectForm(createEmptyProject());
     setProjectEditingId(null);
     setProjectFormErrors([]);
   };
@@ -299,7 +370,7 @@ export function AdminContentPage() {
       setLiveVideos((prev) => [created, ...prev]);
     }
 
-    setLiveForm(emptyLiveVideo);
+    setLiveForm(createEmptyLiveVideo());
     setLiveEditingId(null);
     setLiveFormErrors([]);
   };
@@ -326,7 +397,7 @@ export function AdminContentPage() {
       setMindmaps((prev) => [created, ...prev]);
     }
 
-    setMindmapForm(emptyMindmap);
+    setMindmapForm(createEmptyMindmap());
     setMindmapEditingId(null);
     setMindmapFormErrors([]);
   };
@@ -354,7 +425,7 @@ export function AdminContentPage() {
       setBlogPosts((prev) => [created, ...prev]);
     }
 
-    setBlogForm(emptyBlogPost);
+    setBlogForm(createEmptyBlogPost());
     setBlogEditingId(null);
     setBlogFormErrors([]);
   };
@@ -391,6 +462,68 @@ export function AdminContentPage() {
     setBlogPosts((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const uploadImage = async (target: UploadTarget, file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    if (!uploadApiUrl) {
+      setUploadState((prev) => ({ ...prev, [target]: "error" }));
+      setUploadMessage((prev) => ({
+        ...prev,
+        [target]: "Upload API not configured. Set VITE_ADMIN_UPLOAD_API_URL.",
+      }));
+      return;
+    }
+
+    setUploadState((prev) => ({ ...prev, [target]: "uploading" }));
+    setUploadMessage((prev) => ({ ...prev, [target]: "" }));
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("dir", resolveUploadDir(target));
+
+    try {
+      const response = await fetch(uploadApiUrl, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || (payload && typeof payload === "object" && "ok" in payload && payload.ok === false)) {
+        throw new Error("Upload failed.");
+      }
+
+      const url = extractUploadUrl(payload);
+      if (!url) {
+        throw new Error("Upload succeeded but response does not contain URL.");
+      }
+
+      if (target === "projectCover") {
+        setProjectForm((prev) => ({ ...prev, cover: url }));
+      } else if (target === "liveCover") {
+        setLiveForm((prev) => ({ ...prev, cover: url }));
+      } else if (target === "liveFile") {
+        setLiveForm((prev) => ({ ...prev, file: url }));
+      } else if (target === "mindmapFile") {
+        setMindmapForm((prev) => ({ ...prev, file: url }));
+      } else {
+        setBlogForm((prev) => ({ ...prev, cover: url }));
+      }
+
+      setUploadState((prev) => ({ ...prev, [target]: "success" }));
+      setUploadMessage((prev) => ({ ...prev, [target]: `Uploaded: ${url}` }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed.";
+      setUploadState((prev) => ({ ...prev, [target]: "error" }));
+      setUploadMessage((prev) => ({ ...prev, [target]: message }));
+    }
+  };
+
   if (!isConfigured) {
     return (
       <div className="admin-panel">
@@ -412,10 +545,53 @@ export function AdminContentPage() {
           <div className="admin-section-summary">
             Manage projects, live videos, mindmaps, and blog posts.
           </div>
+          {!uploadApiUrl ? (
+            <div className="small">
+              File upload disabled. Set <code>VITE_ADMIN_UPLOAD_API_URL</code> to enable upload.
+            </div>
+          ) : null}
+        </div>
+        <div className="admin-actions">
+          <button
+            className={`button ${activePanel === "all" ? "" : "ghost"}`}
+            type="button"
+            onClick={() => setActivePanel("all")}
+          >
+            All
+          </button>
+          <button
+            className={`button ${activePanel === "projects" ? "" : "ghost"}`}
+            type="button"
+            onClick={() => setActivePanel("projects")}
+          >
+            Projects
+          </button>
+          <button
+            className={`button ${activePanel === "live" ? "" : "ghost"}`}
+            type="button"
+            onClick={() => setActivePanel("live")}
+          >
+            Live
+          </button>
+          <button
+            className={`button ${activePanel === "mindmaps" ? "" : "ghost"}`}
+            type="button"
+            onClick={() => setActivePanel("mindmaps")}
+          >
+            Mindmaps
+          </button>
+          <button
+            className={`button ${activePanel === "blog" ? "" : "ghost"}`}
+            type="button"
+            onClick={() => setActivePanel("blog")}
+          >
+            Blog
+          </button>
         </div>
       </div>
 
-      <section className="admin-panel admin-section-panel">
+      {activePanel === "all" || activePanel === "projects" ? (
+        <section className="admin-panel admin-section-panel">
         <div className="admin-panel-title">Projects</div>
         <div className="admin-panel-body">
           {projectState === "loading" ? <div className="small">Loading...</div> : null}
@@ -476,14 +652,25 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Cover URL</span>
+              <span>Upload Cover Image</span>
               <input
-                value={projectForm.cover ?? ""}
-                onChange={(event) =>
-                  setProjectForm((prev) => ({ ...prev, cover: event.target.value }))
-                }
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  void uploadImage("projectCover", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
+            {uploadState.projectCover === "uploading" ? (
+              <div className="small">Uploading project cover...</div>
+            ) : null}
+            {uploadState.projectCover === "success" && uploadMessage.projectCover ? (
+              <div className="form-status success">{uploadMessage.projectCover}</div>
+            ) : null}
+            {uploadState.projectCover === "error" && uploadMessage.projectCover ? (
+              <div className="form-status error">{uploadMessage.projectCover}</div>
+            ) : null}
             <label className="form-field">
               <span>Date</span>
               <input
@@ -520,7 +707,7 @@ export function AdminContentPage() {
                   type="button"
                   onClick={() => {
                     setProjectEditingId(null);
-                    setProjectForm(emptyProject);
+                    setProjectForm(createEmptyProject());
                   }}
                 >
                   Cancel
@@ -567,9 +754,11 @@ export function AdminContentPage() {
             ) : null}
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="admin-panel admin-section-panel">
+      {activePanel === "all" || activePanel === "live" ? (
+        <section className="admin-panel admin-section-panel">
         <div className="admin-panel-title">Live Videos</div>
         <div className="admin-panel-body">
           {liveState === "loading" ? <div className="small">Loading...</div> : null}
@@ -618,24 +807,46 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Video File URL</span>
+              <span>Upload Video File</span>
               <input
-                value={liveForm.file}
-                onChange={(event) =>
-                  setLiveForm((prev) => ({ ...prev, file: event.target.value }))
-                }
-                required
+                type="file"
+                accept="video/*"
+                onChange={(event) => {
+                  void uploadImage("liveFile", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
+            {liveForm.file ? <div className="small">Video file: {liveForm.file}</div> : null}
+            {uploadState.liveFile === "uploading" ? (
+              <div className="small">Uploading live video...</div>
+            ) : null}
+            {uploadState.liveFile === "success" && uploadMessage.liveFile ? (
+              <div className="form-status success">{uploadMessage.liveFile}</div>
+            ) : null}
+            {uploadState.liveFile === "error" && uploadMessage.liveFile ? (
+              <div className="form-status error">{uploadMessage.liveFile}</div>
+            ) : null}
             <label className="form-field">
-              <span>Cover URL</span>
+              <span>Upload Cover Image</span>
               <input
-                value={liveCoverInput}
-                onChange={(event) =>
-                  setLiveForm((prev) => ({ ...prev, cover: event.target.value }))
-                }
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  void uploadImage("liveCover", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
+            {uploadState.liveCover === "uploading" ? (
+              <div className="small">Uploading live cover...</div>
+            ) : null}
+            {uploadState.liveCover === "success" && uploadMessage.liveCover ? (
+              <div className="form-status success">{uploadMessage.liveCover}</div>
+            ) : null}
+            {uploadState.liveCover === "error" && uploadMessage.liveCover ? (
+              <div className="form-status error">{uploadMessage.liveCover}</div>
+            ) : null}
             <div className="admin-actions">
               <button className="button" type="submit">
                 {liveEditingId ? "Update Video" : "Create Video"}
@@ -646,7 +857,7 @@ export function AdminContentPage() {
                   type="button"
                   onClick={() => {
                     setLiveEditingId(null);
-                    setLiveForm(emptyLiveVideo);
+                    setLiveForm(createEmptyLiveVideo());
                   }}
                 >
                   Cancel
@@ -693,9 +904,11 @@ export function AdminContentPage() {
             ) : null}
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="admin-panel admin-section-panel">
+      {activePanel === "all" || activePanel === "mindmaps" ? (
+        <section className="admin-panel admin-section-panel">
         <div className="admin-panel-title">Mindmaps</div>
         <div className="admin-panel-body">
           {mindmapState === "loading" ? <div className="small">Loading...</div> : null}
@@ -743,15 +956,26 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>File URL</span>
+              <span>Upload Mindmap File</span>
               <input
-                value={mindmapForm.file}
-                onChange={(event) =>
-                  setMindmapForm((prev) => ({ ...prev, file: event.target.value }))
-                }
-                required
+                type="file"
+                accept=".pdf,application/pdf,image/*"
+                onChange={(event) => {
+                  void uploadImage("mindmapFile", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
+            {mindmapForm.file ? <div className="small">Mindmap file: {mindmapForm.file}</div> : null}
+            {uploadState.mindmapFile === "uploading" ? (
+              <div className="small">Uploading mindmap file...</div>
+            ) : null}
+            {uploadState.mindmapFile === "success" && uploadMessage.mindmapFile ? (
+              <div className="form-status success">{uploadMessage.mindmapFile}</div>
+            ) : null}
+            {uploadState.mindmapFile === "error" && uploadMessage.mindmapFile ? (
+              <div className="form-status error">{uploadMessage.mindmapFile}</div>
+            ) : null}
             <label className="form-field">
               <span>Updated At</span>
               <input
@@ -772,7 +996,7 @@ export function AdminContentPage() {
                   type="button"
                   onClick={() => {
                     setMindmapEditingId(null);
-                    setMindmapForm(emptyMindmap);
+                    setMindmapForm(createEmptyMindmap());
                   }}
                 >
                   Cancel
@@ -819,9 +1043,11 @@ export function AdminContentPage() {
             ) : null}
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="admin-panel admin-section-panel">
+      {activePanel === "all" || activePanel === "blog" ? (
+        <section className="admin-panel admin-section-panel">
         <div className="admin-panel-title">Blog Posts</div>
         <div className="admin-panel-body">
           {blogState === "loading" ? <div className="small">Loading...</div> : null}
@@ -860,14 +1086,25 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Cover URL</span>
+              <span>Upload Cover Image</span>
               <input
-                value={blogForm.cover ?? ""}
-                onChange={(event) =>
-                  setBlogForm((prev) => ({ ...prev, cover: event.target.value }))
-                }
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  void uploadImage("blogCover", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
               />
             </label>
+            {uploadState.blogCover === "uploading" ? (
+              <div className="small">Uploading blog cover...</div>
+            ) : null}
+            {uploadState.blogCover === "success" && uploadMessage.blogCover ? (
+              <div className="form-status success">{uploadMessage.blogCover}</div>
+            ) : null}
+            {uploadState.blogCover === "error" && uploadMessage.blogCover ? (
+              <div className="form-status error">{uploadMessage.blogCover}</div>
+            ) : null}
             <label className="form-field">
               <span>Content (one paragraph per line)</span>
               <textarea
@@ -901,7 +1138,7 @@ export function AdminContentPage() {
                   type="button"
                   onClick={() => {
                     setBlogEditingId(null);
-                    setBlogForm(emptyBlogPost);
+                    setBlogForm(createEmptyBlogPost());
                   }}
                 >
                   Cancel
@@ -948,7 +1185,8 @@ export function AdminContentPage() {
             ) : null}
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

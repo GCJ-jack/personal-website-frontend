@@ -9,6 +9,7 @@ Create a `.env` file (or `.env.local`) in the project root:
 
 ```
 VITE_ADMIN_API_URL=https://your-domain.com/api/admin
+VITE_ADMIN_UPLOAD_API_URL=https://your-domain.com/api/admin/upload
 VITE_PROJECTS_API_URL=https://your-domain.com/api/projects
 VITE_STUDY_API_URL=https://your-domain.com/api/mindmaps
 VITE_LIVE_API_URL=https://your-domain.com/api/live-videos
@@ -92,6 +93,34 @@ All admin endpoints should return JSON. Error responses should follow:
 All endpoints below require admin auth (cookie session or `Authorization: Bearer <token>`).
 Responses use `{ ok: true, data: ... }` for objects/arrays, and errors use the shared
 error format in the Admin API Conventions section.
+
+### Media Upload
+
+**Endpoint**: `POST /api/admin/upload`
+
+**Auth**: required (same as other admin endpoints)
+
+**Request**: `multipart/form-data`
+- field: `file`
+- field: `dir` (recommended): `projects` | `mindmaps` | `live`
+
+**Response (JSON)**: return a URL/path that frontend can store in `cover`/`file`.
+The frontend accepts any of these fields (root or nested under `data`):
+- `url`
+- `fileUrl`
+- `path`
+- `location`
+
+Example:
+```
+{
+  "ok": true,
+  "data": {
+    "url": "/uploads/2026/asset-001.jpg",
+    "dir": "projects"
+  }
+}
+```
 
 ### Projects
 
@@ -376,6 +405,7 @@ postId=1
 ## Notes
 
 - `cover` and `file` paths can be served from your backend or a CDN.
+- Admin UI now supports direct upload and auto-fills `cover` / `file` using upload response URL.
 - If you host assets in `public/`, use absolute paths like `/live/01.mp4`.
 - The frontend expects an array. If your API returns `{ data: [...] }`,
   you will need to adjust the fetch logic accordingly.
