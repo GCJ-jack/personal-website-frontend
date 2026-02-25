@@ -5,9 +5,11 @@ import type { Project } from "../../../data/projects";
 
 export type AdminBlogPost = {
   id: string;
+  slug?: string;
   title: string;
-  date: string;
+  date: string | null;
   cover?: string;
+  excerpt?: string;
   content: string[];
   tags?: string[];
 };
@@ -39,6 +41,13 @@ function normalizeEntity<T>(payload: AdminEntityResponse<T> | T) {
   return "data" in (payload as AdminEntityResponse<T>)
     ? (payload as AdminEntityResponse<T>).data
     : (payload as T);
+}
+
+function normalizeBlogPost(payload: AdminBlogPost): AdminBlogPost {
+  return {
+    ...payload,
+    date: payload.date ?? "",
+  };
 }
 
 export function createAdminContentApi(baseUrl: string) {
@@ -134,21 +143,21 @@ export function createAdminContentApi(baseUrl: string) {
         "/blog-posts",
         { token },
       );
-      return normalizeList(payload);
+      return normalizeList(payload).map(normalizeBlogPost);
     },
     async createBlogPost(input: AdminBlogPost, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<AdminBlogPost> | AdminBlogPost>(
         "/blog-posts",
         { method: "POST", body: input, token },
       );
-      return normalizeEntity(payload);
+      return normalizeBlogPost(normalizeEntity(payload));
     },
     async updateBlogPost(id: string, input: AdminBlogPost, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<AdminBlogPost> | AdminBlogPost>(
         `/blog-posts/${id}`,
         { method: "PUT", body: input, token },
       );
-      return normalizeEntity(payload);
+      return normalizeBlogPost(normalizeEntity(payload));
     },
     async deleteBlogPost(id: string, token?: string | null) {
       return http.request<{ ok: true }>(`/blog-posts/${id}`, {

@@ -852,7 +852,7 @@ export function AdminContentPage() {
             <label className="form-field">
               <span>Date</span>
               <input
-                value={blogForm.date}
+                value={blogForm.date ?? ""}
                 onChange={(event) =>
                   setBlogForm((prev) => ({ ...prev, date: event.target.value }))
                 }

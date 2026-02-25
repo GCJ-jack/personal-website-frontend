@@ -14,10 +14,44 @@ type PublicCommentsResponse = {
   data: PublicComment[];
 };
 
+type PublicCommentCreateResponse = {
+  ok: true;
+  id?: string;
+  numericId?: number;
+  createdAt: string;
+};
+
+type SubscribeCreateResponse = {
+  ok: true;
+  id?: string;
+  numericId?: number;
+  createdAt: string;
+};
+
 const CURRENT_POST_ID = 1;
 
 function normalizeComments(payload: PublicCommentsResponse | PublicComment[]) {
   return Array.isArray(payload) ? payload : payload.data;
+}
+
+function resolveCommentId(payload: PublicCommentCreateResponse) {
+  if (payload.id) {
+    return payload.id;
+  }
+  if (typeof payload.numericId === "number") {
+    return `comment-${payload.numericId}`;
+  }
+  return null;
+}
+
+function resolveSubscriberId(payload: SubscribeCreateResponse) {
+  if (payload.id) {
+    return payload.id;
+  }
+  if (typeof payload.numericId === "number") {
+    return `subscriber-${payload.numericId}`;
+  }
+  return null;
 }
 
 export function BlogPage() {
@@ -25,6 +59,8 @@ export function BlogPage() {
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "success" | "error">("idle");
   const [commentsState, setCommentsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [comments, setComments] = useState<PublicComment[]>([]);
+  const [lastCommentId, setLastCommentId] = useState<string | null>(null);
+  const [lastSubscriberId, setLastSubscriberId] = useState<string | null>(null);
 
   const commentsApiUrl = import.meta.env.VITE_COMMENTS_API_URL as string | undefined;
 
@@ -62,6 +98,7 @@ export function BlogPage() {
   const handleMessage = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessageStatus("idle");
+    setLastCommentId(null);
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -85,6 +122,10 @@ export function BlogPage() {
       });
 
       if (response.ok) {
+        const payload = (await response.json().catch(() => null)) as PublicCommentCreateResponse | null;
+        if (payload?.ok) {
+          setLastCommentId(resolveCommentId(payload));
+        }
         setMessageStatus("success");
         form.reset();
         void loadComments();
@@ -99,6 +140,7 @@ export function BlogPage() {
   const handleSubscribe = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubscribeStatus("idle");
+    setLastSubscriberId(null);
 
     const form = event.currentTarget;
     const emailInput = form.querySelector<HTMLInputElement>("input[name=\"email\"]");
@@ -120,6 +162,10 @@ export function BlogPage() {
       });
 
       if (response.ok) {
+        const payload = (await response.json().catch(() => null)) as SubscribeCreateResponse | null;
+        if (payload?.ok) {
+          setLastSubscriberId(resolveSubscriberId(payload));
+        }
         setSubscribeStatus("success");
         form.reset();
       } else {
@@ -178,7 +224,10 @@ export function BlogPage() {
                 </label>
                 <button className="button" type="submit">Send</button>
                 {messageStatus === "success" ? (
-                  <div className="form-status success">Message sent. Thank you!</div>
+                  <div className="form-status success">
+                    Message sent. Thank you!
+                    {lastCommentId ? ` ID: ${lastCommentId}` : ""}
+                  </div>
                 ) : null}
                 {messageStatus === "error" ? (
                   <div className="form-status error">Failed to send. Please try again.</div>
@@ -219,7 +268,10 @@ export function BlogPage() {
             </label>
             <button className="button" type="submit">Subscribe</button>
             {subscribeStatus === "success" ? (
-              <div className="form-status success">Subscribed successfully.</div>
+              <div className="form-status success">
+                Subscribed successfully.
+                {lastSubscriberId ? ` ID: ${lastSubscriberId}` : ""}
+              </div>
             ) : null}
             {subscribeStatus === "error" ? (
               <div className="form-status error">Subscription failed. Try again.</div>
