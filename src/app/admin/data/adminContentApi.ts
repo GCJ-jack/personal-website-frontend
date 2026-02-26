@@ -33,6 +33,8 @@ type AdminEntityResponse<T> = {
   data: T;
 };
 
+type AdminCreateInput<T extends { id: string }> = Omit<T, "id"> & { id?: string };
+
 function normalizeList<T>(payload: AdminListResponse<T> | T[]) {
   return Array.isArray(payload) ? payload : payload.data;
 }
@@ -61,7 +63,7 @@ export function createAdminContentApi(baseUrl: string) {
       );
       return normalizeList(payload);
     },
-    async createProject(input: Project, token?: string | null) {
+    async createProject(input: AdminCreateInput<Project>, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<Project> | Project>(
         "/projects",
         { method: "POST", body: input, token },
@@ -89,7 +91,7 @@ export function createAdminContentApi(baseUrl: string) {
       );
       return normalizeList(payload);
     },
-    async createLiveVideo(input: LiveVideo, token?: string | null) {
+    async createLiveVideo(input: AdminCreateInput<LiveVideo>, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<LiveVideo> | LiveVideo>(
         "/live-videos",
         { method: "POST", body: input, token },
@@ -117,7 +119,7 @@ export function createAdminContentApi(baseUrl: string) {
       );
       return normalizeList(payload);
     },
-    async createMindmap(input: Mindmap, token?: string | null) {
+    async createMindmap(input: AdminCreateInput<Mindmap>, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<Mindmap> | Mindmap>(
         "/mindmaps",
         { method: "POST", body: input, token },
@@ -145,7 +147,7 @@ export function createAdminContentApi(baseUrl: string) {
       );
       return normalizeList(payload).map(normalizeBlogPost);
     },
-    async createBlogPost(input: AdminBlogPost, token?: string | null) {
+    async createBlogPost(input: AdminCreateInput<AdminBlogPost>, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<AdminBlogPost> | AdminBlogPost>(
         "/blog-posts",
         { method: "POST", body: input, token },

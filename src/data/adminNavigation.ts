@@ -20,14 +20,4 @@ export const adminNavItems: AdminNavItem[] = [
     href: "/admin/comments",
     description: "Read all blog comments submitted by visitors.",
   },
-  {
-    label: "Media",
-    href: "/admin/media",
-    description: "Uploads, asset library, and file organization.",
-  },
-  {
-    label: "Settings",
-    href: "/admin/settings",
-    description: "Site config, users, roles, and permissions.",
-  },
 ];

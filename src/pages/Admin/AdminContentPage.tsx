@@ -66,10 +66,6 @@ function parseLines(input: string) {
     .filter(Boolean);
 }
 
-function isValidId(value: string) {
-  return /^[a-z0-9-]+$/.test(value);
-}
-
 function isValidDate(value: string) {
   return /^\\d{4}(-\\d{2}-\\d{2})?$/.test(value);
 }
@@ -256,8 +252,6 @@ export function AdminContentPage() {
 
   const validateProject = () => {
     const errors = buildErrors([
-      projectForm.id ? "" : "Project ID is required.",
-      projectForm.id && !isValidId(projectForm.id) ? "Project ID must be lowercase letters, numbers, or hyphens." : "",
       projectForm.name ? "" : "Project name is required.",
       projectForm.summary ? "" : "Project summary is required.",
       projectForm.date ? "" : "Project date is required.",
@@ -273,8 +267,6 @@ export function AdminContentPage() {
 
   const validateLiveVideo = () => {
     const errors = buildErrors([
-      liveForm.id ? "" : "Video ID is required.",
-      liveForm.id && !isValidId(liveForm.id) ? "Video ID must be lowercase letters, numbers, or hyphens." : "",
       liveForm.title ? "" : "Video title is required.",
       liveForm.date ? "" : "Video date is required.",
       liveForm.date && !isValidDate(liveForm.date) ? "Video date must be YYYY or YYYY-MM-DD." : "",
@@ -288,8 +280,6 @@ export function AdminContentPage() {
 
   const validateMindmap = () => {
     const errors = buildErrors([
-      mindmapForm.id ? "" : "Mindmap ID is required.",
-      mindmapForm.id && !isValidId(mindmapForm.id) ? "Mindmap ID must be lowercase letters, numbers, or hyphens." : "",
       mindmapForm.title ? "" : "Mindmap title is required.",
       mindmapForm.file ? "" : "Mindmap file is required. Please upload it first.",
       mindmapForm.file && !isValidUrl(mindmapForm.file) ? "Mindmap file path is invalid." : "",
@@ -304,8 +294,6 @@ export function AdminContentPage() {
 
   const validateBlogPost = () => {
     const errors = buildErrors([
-      blogForm.id ? "" : "Post ID is required.",
-      blogForm.id && !isValidId(blogForm.id) ? "Post ID must be lowercase letters, numbers, or hyphens." : "",
       blogForm.title ? "" : "Post title is required.",
       blogForm.date ? "" : "Post date is required.",
       blogForm.date && !isValidDate(blogForm.date) ? "Post date must be YYYY or YYYY-MM-DD." : "",
@@ -339,7 +327,8 @@ export function AdminContentPage() {
       const updated = await api.updateProject(projectEditingId, payload, token);
       setProjects((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const created = await api.createProject(payload, token);
+      const { id, ...createPayload } = payload;
+      const created = await api.createProject(createPayload, token);
       setProjects((prev) => [created, ...prev]);
     }
 
@@ -366,7 +355,8 @@ export function AdminContentPage() {
       const updated = await api.updateLiveVideo(liveEditingId, payload, token);
       setLiveVideos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const created = await api.createLiveVideo(payload, token);
+      const { id, ...createPayload } = payload;
+      const created = await api.createLiveVideo(createPayload, token);
       setLiveVideos((prev) => [created, ...prev]);
     }
 
@@ -393,7 +383,8 @@ export function AdminContentPage() {
       const updated = await api.updateMindmap(mindmapEditingId, payload, token);
       setMindmaps((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const created = await api.createMindmap(payload, token);
+      const { id, ...createPayload } = payload;
+      const created = await api.createMindmap(createPayload, token);
       setMindmaps((prev) => [created, ...prev]);
     }
 
@@ -421,7 +412,8 @@ export function AdminContentPage() {
       const updated = await api.updateBlogPost(blogEditingId, payload, token);
       setBlogPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const created = await api.createBlogPost(payload, token);
+      const { id, ...createPayload } = payload;
+      const created = await api.createBlogPost(createPayload, token);
       setBlogPosts((prev) => [created, ...prev]);
     }
 
@@ -600,16 +592,6 @@ export function AdminContentPage() {
           ) : null}
           <form className="form" onSubmit={handleProjectSubmit}>
             <label className="form-field">
-              <span>ID</span>
-              <input
-                value={projectForm.id}
-                onChange={(event) =>
-                  setProjectForm((prev) => ({ ...prev, id: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="form-field">
               <span>Name</span>
               <input
                 value={projectForm.name}
@@ -767,16 +749,6 @@ export function AdminContentPage() {
           ) : null}
           <form className="form" onSubmit={handleLiveSubmit}>
             <label className="form-field">
-              <span>ID</span>
-              <input
-                value={liveForm.id}
-                onChange={(event) =>
-                  setLiveForm((prev) => ({ ...prev, id: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="form-field">
               <span>Title</span>
               <input
                 value={liveForm.title}
@@ -917,16 +889,6 @@ export function AdminContentPage() {
           ) : null}
           <form className="form" onSubmit={handleMindmapSubmit}>
             <label className="form-field">
-              <span>ID</span>
-              <input
-                value={mindmapForm.id}
-                onChange={(event) =>
-                  setMindmapForm((prev) => ({ ...prev, id: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="form-field">
               <span>Title</span>
               <input
                 value={mindmapForm.title}
@@ -1055,16 +1017,6 @@ export function AdminContentPage() {
             <div className="form-status error">{blogError}</div>
           ) : null}
           <form className="form" onSubmit={handleBlogSubmit}>
-            <label className="form-field">
-              <span>ID</span>
-              <input
-                value={blogForm.id}
-                onChange={(event) =>
-                  setBlogForm((prev) => ({ ...prev, id: event.target.value }))
-                }
-                required
-              />
-            </label>
             <label className="form-field">
               <span>Title</span>
               <input
