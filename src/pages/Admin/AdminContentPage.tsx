@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createAdminContentApi, type AdminBlogPost } from "../../app/admin/data/adminContentApi";
 import { useAdminAuth } from "../../app/admin/auth/useAdminAuth";
 import type { AdminApiError } from "../../app/admin/http/adminHttp";
+import { createLogger } from "../../lib/logger";
 import type { LiveVideo } from "../../data/liveVideos";
 import type { Mindmap } from "../../data/mindmaps";
 import type { Project } from "../../data/projects";
@@ -11,6 +12,7 @@ type FormErrors = string[];
 type ContentPanel = "all" | "projects" | "live" | "mindmaps" | "blog";
 type UploadTarget = "projectCover" | "liveCover" | "liveFile" | "mindmapFile" | "blogCover";
 type UploadState = "idle" | "uploading" | "success" | "error";
+const logger = createLogger("AdminContent");
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -57,18 +59,33 @@ function createEmptyBlogPost(): AdminBlogPost {
   };
 }
 
-function parseCsv(input: string) {
-  return input
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
 function parseLines(input: string) {
   return input
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function joinLines(input?: string[]) {
+  return input?.join("\n") ?? "";
+}
+
+function parseProjectLinksInput(input: string) {
+  return parseLines(input)
+    .map((line, index) => {
+      const parts = line.split("|").map((value) => value.trim());
+      if (parts.length >= 2) {
+        const label = parts[0];
+        const href = parts.slice(1).join("|");
+        if (!href) {
+          return null;
+        }
+        return { label: label || `Link ${index + 1}`, href };
+      }
+
+      return { label: `Link ${index + 1}`, href: parts[0] };
+    })
+    .filter((item): item is { label: string; href: string } => Boolean(item?.href));
 }
 
 function slugify(input: string) {
@@ -167,6 +184,8 @@ export function AdminContentPage() {
   const [projectForm, setProjectForm] = useState<Project>(() => createEmptyProject());
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [projectFormErrors, setProjectFormErrors] = useState<FormErrors>([]);
+  const [projectStackInput, setProjectStackInput] = useState("");
+  const [projectHighlightsInput, setProjectHighlightsInput] = useState("");
 
   const [liveState, setLiveState] = useState<LoadState>("idle");
   const [liveError, setLiveError] = useState<string | null>(null);
@@ -181,6 +200,7 @@ export function AdminContentPage() {
   const [mindmapForm, setMindmapForm] = useState<Mindmap>(() => createEmptyMindmap());
   const [mindmapEditingId, setMindmapEditingId] = useState<string | null>(null);
   const [mindmapFormErrors, setMindmapFormErrors] = useState<FormErrors>([]);
+  const [mindmapTagsInput, setMindmapTagsInput] = useState("");
 
   const [blogState, setBlogState] = useState<LoadState>("idle");
   const [blogError, setBlogError] = useState<string | null>(null);
@@ -188,6 +208,8 @@ export function AdminContentPage() {
   const [blogForm, setBlogForm] = useState<AdminBlogPost>(() => createEmptyBlogPost());
   const [blogEditingId, setBlogEditingId] = useState<string | null>(null);
   const [blogFormErrors, setBlogFormErrors] = useState<FormErrors>([]);
+  const [blogContentInput, setBlogContentInput] = useState("");
+  const [blogTagsInput, setBlogTagsInput] = useState("");
   const [activePanel, setActivePanel] = useState<ContentPanel>("all");
   const [uploadState, setUploadState] = useState<Record<UploadTarget, UploadState>>({
     projectCover: "idle",
@@ -210,15 +232,18 @@ export function AdminContentPage() {
     }
 
     setProjectState("loading");
+    logger.info("Loading admin projects");
     api
       .listProjects(token)
       .then((data) => {
         setProjects(data);
         setProjectState("ready");
+        logger.info("Loaded admin projects", { count: data.length });
       })
       .catch((err) => {
         setProjectError(err instanceof Error ? err.message : "Failed to load projects.");
         setProjectState("error");
+        logger.error("Failed to load admin projects", err);
       });
   }, [api, isConfigured, token]);
 
@@ -228,15 +253,18 @@ export function AdminContentPage() {
     }
 
     setLiveState("loading");
+    logger.info("Loading admin live videos");
     api
       .listLiveVideos(token)
       .then((data) => {
         setLiveVideos(data);
         setLiveState("ready");
+        logger.info("Loaded admin live videos", { count: data.length });
       })
       .catch((err) => {
         setLiveError(err instanceof Error ? err.message : "Failed to load live videos.");
         setLiveState("error");
+        logger.error("Failed to load admin live videos", err);
       });
   }, [api, isConfigured, token]);
 
@@ -246,15 +274,18 @@ export function AdminContentPage() {
     }
 
     setMindmapState("loading");
+    logger.info("Loading admin mindmaps");
     api
       .listMindmaps(token)
       .then((data) => {
         setMindmaps(data);
         setMindmapState("ready");
+        logger.info("Loaded admin mindmaps", { count: data.length });
       })
       .catch((err) => {
         setMindmapError(err instanceof Error ? err.message : "Failed to load mindmaps.");
         setMindmapState("error");
+        logger.error("Failed to load admin mindmaps", err);
       });
   }, [api, isConfigured, token]);
 
@@ -264,28 +295,26 @@ export function AdminContentPage() {
     }
 
     setBlogState("loading");
+    logger.info("Loading admin blog posts");
     api
       .listBlogPosts(token)
       .then((data) => {
         setBlogPosts(data);
         setBlogState("ready");
+        logger.info("Loaded admin blog posts", { count: data.length });
       })
       .catch((err) => {
         setBlogError(err instanceof Error ? err.message : "Failed to load blog posts.");
         setBlogState("error");
+        logger.error("Failed to load admin blog posts", err);
       });
   }, [api, isConfigured, token]);
 
-  const projectStackInput = projectForm.stack?.join(", ") ?? "";
-  const projectHighlightsInput = projectForm.highlights?.join(", ") ?? "";
   const projectLinksInput = projectForm.links
     ? projectForm.links.map((link) => `${link.label}|${link.href}`).join("\n")
     : "";
 
   const liveCoverInput = liveForm.cover ?? "";
-  const mindmapTagsInput = mindmapForm.tags?.join(", ") ?? "";
-  const blogContentInput = blogForm.content?.join("\n") ?? "";
-  const blogTagsInput = blogForm.tags?.join(", ") ?? "";
 
   const validateProject = () => {
     const errors = buildErrors([
@@ -294,9 +323,6 @@ export function AdminContentPage() {
       projectForm.date ? "" : "Project date is required.",
       projectForm.date && !isValidDate(projectForm.date) ? "Project date must be YYYY or YYYY-MM-DD." : "",
       projectForm.cover && !isValidUrl(projectForm.cover) ? "Project cover must be a URL or /path." : "",
-      projectLinksInput && parseLines(projectLinksInput).some((line) => !line.includes("|"))
-        ? "Links must be in the format Label|URL."
-        : "",
     ]);
     setProjectFormErrors(errors);
     return errors.length === 0;
@@ -357,15 +383,13 @@ export function AdminContentPage() {
     if (!validateProject()) {
       return;
     }
+    logger.info("Submitting project form", { mode: projectEditingId ? "update" : "create" });
 
     const payload: Project = {
       ...projectForm,
-      stack: parseCsv(projectStackInput),
-      highlights: parseCsv(projectHighlightsInput),
-      links: parseLines(projectLinksInput).map((line) => {
-        const [label, href] = line.split("|").map((value) => value.trim());
-        return { label: label || "Link", href: href || "" };
-      }),
+      stack: parseLines(projectStackInput),
+      highlights: parseLines(projectHighlightsInput),
+      links: parseProjectLinksInput(projectLinksInput),
     };
 
     if (projectEditingId) {
@@ -380,6 +404,8 @@ export function AdminContentPage() {
     setProjectForm(createEmptyProject());
     setProjectEditingId(null);
     setProjectFormErrors([]);
+    setProjectStackInput("");
+    setProjectHighlightsInput("");
   };
 
   const handleLiveSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -390,6 +416,7 @@ export function AdminContentPage() {
     if (!validateLiveVideo()) {
       return;
     }
+    logger.info("Submitting live video form", { mode: liveEditingId ? "update" : "create" });
 
     const payload: LiveVideo = {
       ...liveForm,
@@ -418,10 +445,11 @@ export function AdminContentPage() {
     if (!validateMindmap()) {
       return;
     }
+    logger.info("Submitting mindmap form", { mode: mindmapEditingId ? "update" : "create" });
 
     const payload: Mindmap = {
       ...mindmapForm,
-      tags: parseCsv(mindmapTagsInput),
+      tags: parseLines(mindmapTagsInput),
     };
 
     if (mindmapEditingId) {
@@ -436,6 +464,7 @@ export function AdminContentPage() {
     setMindmapForm(createEmptyMindmap());
     setMindmapEditingId(null);
     setMindmapFormErrors([]);
+    setMindmapTagsInput("");
   };
 
   const handleBlogSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -446,6 +475,11 @@ export function AdminContentPage() {
     if (!validateBlogPost()) {
       return;
     }
+    logger.info("Submitting blog form", {
+      mode: blogEditingId ? "update" : "create",
+      slug: blogForm.slug,
+      status: blogForm.status,
+    });
 
     const computedSlug = blogForm.slug || slugify(`${blogForm.title}-${blogForm.date ?? ""}`);
     const payload: AdminBlogPost = {
@@ -455,7 +489,7 @@ export function AdminContentPage() {
       excerpt: blogForm.excerpt || undefined,
       status: blogForm.status ?? "published",
       content: parseLines(blogContentInput),
-      tags: parseCsv(blogTagsInput),
+      tags: parseLines(blogTagsInput),
     };
 
     try {
@@ -471,8 +505,11 @@ export function AdminContentPage() {
       setBlogForm(createEmptyBlogPost());
       setBlogEditingId(null);
       setBlogFormErrors([]);
+      setBlogContentInput("");
+      setBlogTagsInput("");
     } catch (err) {
       setBlogFormErrors([getRequestErrorMessage(err, "Failed to save blog post.")]);
+      logger.error("Failed to save blog post", err);
     }
   };
 
@@ -480,6 +517,7 @@ export function AdminContentPage() {
     if (!api) {
       return;
     }
+    logger.info("Deleting project", { id });
     await api.deleteProject(id, token);
     setProjects((prev) => prev.filter((item) => item.id !== id));
   };
@@ -488,6 +526,7 @@ export function AdminContentPage() {
     if (!api) {
       return;
     }
+    logger.info("Deleting live video", { id });
     await api.deleteLiveVideo(id, token);
     setLiveVideos((prev) => prev.filter((item) => item.id !== id));
   };
@@ -496,6 +535,7 @@ export function AdminContentPage() {
     if (!api) {
       return;
     }
+    logger.info("Deleting mindmap", { id });
     await api.deleteMindmap(id, token);
     setMindmaps((prev) => prev.filter((item) => item.id !== id));
   };
@@ -504,6 +544,7 @@ export function AdminContentPage() {
     if (!api) {
       return;
     }
+    logger.info("Deleting blog post", { id });
     await api.deleteBlogPost(id, token);
     setBlogPosts((prev) => prev.filter((item) => item.id !== id));
   };
@@ -512,6 +553,7 @@ export function AdminContentPage() {
     if (!file) {
       return;
     }
+    logger.info("Uploading file", { target, name: file.name, size: file.size });
 
     if (!uploadApiUrl) {
       setUploadState((prev) => ({ ...prev, [target]: "error" }));
@@ -563,10 +605,12 @@ export function AdminContentPage() {
 
       setUploadState((prev) => ({ ...prev, [target]: "success" }));
       setUploadMessage((prev) => ({ ...prev, [target]: `Uploaded: ${url}` }));
+      logger.info("Upload succeeded", { target, url });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed.";
       setUploadState((prev) => ({ ...prev, [target]: "error" }));
       setUploadMessage((prev) => ({ ...prev, [target]: message }));
+      logger.error("Upload failed", { target, message });
     }
   };
 
@@ -667,24 +711,19 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Stack (comma separated)</span>
-              <input
+              <span>Stack (one per line)</span>
+              <textarea
+                rows={3}
                 value={projectStackInput}
-                onChange={(event) =>
-                  setProjectForm((prev) => ({ ...prev, stack: parseCsv(event.target.value) }))
-                }
+                onChange={(event) => setProjectStackInput(event.target.value)}
               />
             </label>
             <label className="form-field">
-              <span>Highlights (comma separated)</span>
-              <input
+              <span>Highlights (one per line)</span>
+              <textarea
+                rows={3}
                 value={projectHighlightsInput}
-                onChange={(event) =>
-                  setProjectForm((prev) => ({
-                    ...prev,
-                    highlights: parseCsv(event.target.value),
-                  }))
-                }
+                onChange={(event) => setProjectHighlightsInput(event.target.value)}
               />
             </label>
             <label className="form-field">
@@ -718,17 +757,14 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Links (one per line: Label|URL)</span>
+              <span>Links (one per line: URL or Label|URL)</span>
               <textarea
                 rows={3}
                 value={projectLinksInput}
                 onChange={(event) =>
                   setProjectForm((prev) => ({
                     ...prev,
-                    links: parseLines(event.target.value).map((line) => {
-                      const [label, href] = line.split("|").map((value) => value.trim());
-                      return { label: label || "Link", href: href || "" };
-                    }),
+                    links: parseProjectLinksInput(event.target.value),
                   }))
                 }
               />
@@ -744,6 +780,8 @@ export function AdminContentPage() {
                   onClick={() => {
                     setProjectEditingId(null);
                     setProjectForm(createEmptyProject());
+                    setProjectStackInput("");
+                    setProjectHighlightsInput("");
                   }}
                 >
                   Cancel
@@ -771,6 +809,8 @@ export function AdminContentPage() {
                     onClick={() => {
                       setProjectEditingId(project.id);
                       setProjectForm(project);
+                      setProjectStackInput(joinLines(project.stack));
+                      setProjectHighlightsInput(joinLines(project.highlights));
                     }}
                   >
                     Edit
@@ -963,12 +1003,11 @@ export function AdminContentPage() {
               />
             </label>
             <label className="form-field">
-              <span>Tags (comma separated)</span>
-              <input
+              <span>Tags (one per line)</span>
+              <textarea
+                rows={3}
                 value={mindmapTagsInput}
-                onChange={(event) =>
-                  setMindmapForm((prev) => ({ ...prev, tags: parseCsv(event.target.value) }))
-                }
+                onChange={(event) => setMindmapTagsInput(event.target.value)}
               />
             </label>
             <label className="form-field">
@@ -1013,6 +1052,7 @@ export function AdminContentPage() {
                   onClick={() => {
                     setMindmapEditingId(null);
                     setMindmapForm(createEmptyMindmap());
+                    setMindmapTagsInput("");
                   }}
                 >
                   Cancel
@@ -1040,6 +1080,7 @@ export function AdminContentPage() {
                     onClick={() => {
                       setMindmapEditingId(mindmap.id);
                       setMindmapForm(mindmap);
+                      setMindmapTagsInput(joinLines(mindmap.tags));
                     }}
                   >
                     Edit
@@ -1164,22 +1205,16 @@ export function AdminContentPage() {
               <textarea
                 rows={4}
                 value={blogContentInput}
-                onChange={(event) =>
-                  setBlogForm((prev) => ({
-                    ...prev,
-                    content: parseLines(event.target.value),
-                  }))
-                }
+                onChange={(event) => setBlogContentInput(event.target.value)}
                 required
               />
             </label>
             <label className="form-field">
-              <span>Tags (comma separated)</span>
-              <input
+              <span>Tags (one per line)</span>
+              <textarea
+                rows={3}
                 value={blogTagsInput}
-                onChange={(event) =>
-                  setBlogForm((prev) => ({ ...prev, tags: parseCsv(event.target.value) }))
-                }
+                onChange={(event) => setBlogTagsInput(event.target.value)}
               />
             </label>
             <div className="admin-actions">
@@ -1193,6 +1228,8 @@ export function AdminContentPage() {
                   onClick={() => {
                     setBlogEditingId(null);
                     setBlogForm(createEmptyBlogPost());
+                    setBlogContentInput("");
+                    setBlogTagsInput("");
                   }}
                 >
                   Cancel
@@ -1220,6 +1257,8 @@ export function AdminContentPage() {
                     onClick={() => {
                       setBlogEditingId(post.id);
                       setBlogForm(post);
+                      setBlogContentInput(joinLines(post.content));
+                      setBlogTagsInput(joinLines(post.tags));
                     }}
                   >
                     Edit

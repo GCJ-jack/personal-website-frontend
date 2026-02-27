@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { Page } from "../../components/shared/Page";
 import { projects as seedProjects, type Project } from "../../data/projects";
 import { createLogger } from "../../lib/logger";
 
-const logger = createLogger("ProjectsPage");
+const logger = createLogger("ProjectDetailPage");
 
 type ProjectListPayload = Project[] | { data?: Project[] };
 type ProjectLink = { label: string; href: string };
@@ -142,98 +143,91 @@ function extractProjectLinks(project: Project) {
   return list;
 }
 
-function normalizeProjectListPayload(payload: ProjectListPayload): Project[] {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-  return Array.isArray(payload.data) ? payload.data : [];
-}
-
-export function ProjectsPage() {
+export function ProjectDetailPage() {
+  const { projectId } = useParams<{ projectId: string }>();
   const [projects, setProjects] = useState<Project[]>(seedProjects);
+
+  function normalizeProjectListPayload(payload: ProjectListPayload): Project[] {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    return Array.isArray(payload.data) ? payload.data : [];
+  }
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_PROJECTS_API_URL as string | undefined;
     if (!apiUrl) {
-      logger.debug("Using seed projects (no API URL)");
       return;
     }
 
     const controller = new AbortController();
-    logger.info("Loading projects from API", { apiUrl });
-
     fetch(apiUrl, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
       .then((payload: ProjectListPayload) => {
         const data = normalizeProjectListPayload(payload);
         if (data.length) {
           setProjects(data);
-          logger.info("Loaded projects from API", { count: data.length });
         }
       })
       .catch((err) => {
-        logger.warn("Failed to load projects from API; using seed", err);
+        logger.warn("Failed to load project detail from API; using seed", err);
       });
 
     return () => controller.abort();
   }, []);
 
+  const project = useMemo(
+    () => projects.find((item) => item.id === projectId),
+    [projects, projectId],
+  );
+  const links = useMemo(() => (project ? extractProjectLinks(project) : []), [project]);
+
+  if (!project) {
+    return (
+      <Page title="Project" subtitle="Not found">
+        <section className="card stack">
+          <p>Project not found.</p>
+          <div>
+            <Link className="button ghost" to="/projects">Back to Projects</Link>
+          </div>
+        </section>
+      </Page>
+    );
+  }
+
   return (
     <Page
-      title="Projects"
-      subtitle="Selected work"
-      intro="A curated list of technical projects and experiments."
+      title={project.name}
+      subtitle={project.date}
+      intro={project.summary}
     >
-      <section>
-        <div className="grid-2">
-          {projects.map((project) => {
-            const links = extractProjectLinks(project);
-            return (
-              <div key={project.id} className="card stack">
-              {project.cover ? (
-                <img
-                  src={project.cover}
-                  alt={`${project.name} cover`}
-                  className="project-cover"
-                />
-              ) : null}
-              <div className="stack">
-                <div className="small">{project.date}</div>
-                <h3>{project.name}</h3>
-                <p>{project.summary}</p>
-              </div>
-              <div className="tags">
-                {project.stack.map((item) => (
-                  <span key={item} className="tag">
-                    {item}
-                  </span>
-                ))}
-              </div>
-              {project.highlights && project.highlights.length ? (
-                <ul className="list">
-                  {project.highlights.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              ) : null}
-              {links.length ? (
-                <div className="card-actions">
-                  {links.map((link, index) => (
-                    <a
-                      key={`${project.id}-link-${index}-${link.href}`}
-                      className="button ghost"
-                      href={link.href}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-              </div>
-            );
-          })}
+      <section className="card stack">
+        {project.cover ? (
+          <img
+            src={project.cover}
+            alt={`${project.name} cover`}
+            className="project-cover"
+          />
+        ) : null}
+        <div className="tags">
+          {project.stack.map((item) => (
+            <span key={item} className="tag">{item}</span>
+          ))}
+        </div>
+        {project.highlights?.length ? (
+          <ul className="list">
+            {project.highlights.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="card-actions">
+          <Link className="button ghost" to="/projects">Back</Link>
+          {links.map((link, index) => (
+            <a key={`${project.id}-detail-link-${index}`} className="button" href={link.href} target="_blank" rel="noreferrer">
+              {link.label}
+            </a>
+          ))}
         </div>
       </section>
     </Page>
