@@ -3,6 +3,7 @@ export type AdminApiError = {
   error: string;
   message?: string;
   status?: number;
+  requestId?: string;
 };
 
 type AdminHttpRequestOptions = {
@@ -30,12 +31,13 @@ function buildUrl(baseUrl: string, path: string) {
 
 function normalizeError(data: unknown, status?: number): AdminApiError {
   if (data && typeof data === "object" && "error" in data) {
-    const payload = data as AdminApiError;
+    const payload = data as AdminApiError & { requestId?: unknown };
     return {
       ok: false,
       error: payload.error || "RequestError",
       message: typeof payload.message === "string" ? payload.message : undefined,
       status,
+      requestId: typeof payload.requestId === "string" ? payload.requestId : undefined,
     };
   }
 
@@ -74,4 +76,3 @@ export function createAdminHttpClient(baseUrl: string): AdminHttpClient {
     },
   };
 }
-

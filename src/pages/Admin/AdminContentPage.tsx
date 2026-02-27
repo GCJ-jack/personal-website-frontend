@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createAdminContentApi, type AdminBlogPost } from "../../app/admin/data/adminContentApi";
 import { useAdminAuth } from "../../app/admin/auth/useAdminAuth";
+import type { AdminApiError } from "../../app/admin/http/adminHttp";
 import type { LiveVideo } from "../../data/liveVideos";
 import type { Mindmap } from "../../data/mindmaps";
 import type { Project } from "../../data/projects";
@@ -46,8 +47,12 @@ function createEmptyMindmap(): Mindmap {
 function createEmptyBlogPost(): AdminBlogPost {
   return {
     id: "",
+    slug: "",
     title: "",
     date: getTodayDate(),
+    coverUrl: "",
+    excerpt: "",
+    status: "published",
     content: [],
   };
 }
@@ -66,8 +71,31 @@ function parseLines(input: string) {
     .filter(Boolean);
 }
 
+function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getRequestErrorMessage(err: unknown, fallback: string) {
+  if (err && typeof err === "object" && "details" in err) {
+    const details = (err as { details?: AdminApiError }).details;
+    if (details?.message) {
+      return details.requestId
+        ? `${details.message} (requestId: ${details.requestId})`
+        : details.message;
+    }
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
+}
+
 function isValidDate(value: string) {
-  return /^\\d{4}(-\\d{2}-\\d{2})?$/.test(value);
+  return /^\d{4}(-\d{2}-\d{2})?$/.test(value);
 }
 
 function isValidUrl(value: string) {
@@ -112,10 +140,19 @@ function resolveUploadDir(target: UploadTarget): string {
   if (target === "projectCover") {
     return "projects";
   }
+  if (target === "blogCover") {
+    return "blog";
+  }
+  if (target === "liveCover") {
+    return "projects";
+  }
+  if (target === "liveFile") {
+    return "live";
+  }
   if (target === "mindmapFile") {
     return "mindmaps";
   }
-  return "live";
+  return "projects";
 }
 
 export function AdminContentPage() {
@@ -293,11 +330,19 @@ export function AdminContentPage() {
   };
 
   const validateBlogPost = () => {
+    const effectiveSlug = blogForm.slug || slugify(`${blogForm.title}-${blogForm.date ?? ""}`);
+    const requiresCover = (blogForm.status ?? "published") === "published";
     const errors = buildErrors([
+      effectiveSlug ? "" : "Post slug is required and must use lowercase letters, numbers, or hyphens.",
+      effectiveSlug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(effectiveSlug)
+        ? "Post slug format is invalid. Use lowercase letters, numbers, and hyphens."
+        : "",
       blogForm.title ? "" : "Post title is required.",
       blogForm.date ? "" : "Post date is required.",
       blogForm.date && !isValidDate(blogForm.date) ? "Post date must be YYYY or YYYY-MM-DD." : "",
-      blogForm.cover && !isValidUrl(blogForm.cover) ? "Cover must be a URL or /path." : "",
+      requiresCover && !blogForm.coverUrl ? "Post cover is required when status is published." : "",
+      blogForm.coverUrl && !isValidUrl(blogForm.coverUrl) ? "Cover URL must be a URL or /path." : "",
+      blogForm.status ? "" : "Post status is required.",
       blogContentInput ? "" : "Post content is required.",
     ]);
     setBlogFormErrors(errors);
@@ -402,24 +447,33 @@ export function AdminContentPage() {
       return;
     }
 
+    const computedSlug = blogForm.slug || slugify(`${blogForm.title}-${blogForm.date ?? ""}`);
     const payload: AdminBlogPost = {
       ...blogForm,
+      slug: computedSlug,
+      coverUrl: blogForm.coverUrl || undefined,
+      excerpt: blogForm.excerpt || undefined,
+      status: blogForm.status ?? "published",
       content: parseLines(blogContentInput),
       tags: parseCsv(blogTagsInput),
     };
 
-    if (blogEditingId) {
-      const updated = await api.updateBlogPost(blogEditingId, payload, token);
-      setBlogPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-    } else {
-      const { id, ...createPayload } = payload;
-      const created = await api.createBlogPost(createPayload, token);
-      setBlogPosts((prev) => [created, ...prev]);
-    }
+    try {
+      if (blogEditingId) {
+        const updated = await api.updateBlogPost(blogEditingId, payload, token);
+        setBlogPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        const { id, ...createPayload } = payload;
+        const created = await api.createBlogPost(createPayload, token);
+        setBlogPosts((prev) => [created, ...prev]);
+      }
 
-    setBlogForm(createEmptyBlogPost());
-    setBlogEditingId(null);
-    setBlogFormErrors([]);
+      setBlogForm(createEmptyBlogPost());
+      setBlogEditingId(null);
+      setBlogFormErrors([]);
+    } catch (err) {
+      setBlogFormErrors([getRequestErrorMessage(err, "Failed to save blog post.")]);
+    }
   };
 
   const deleteProject = async (id: string) => {
@@ -504,7 +558,7 @@ export function AdminContentPage() {
       } else if (target === "mindmapFile") {
         setMindmapForm((prev) => ({ ...prev, file: url }));
       } else {
-        setBlogForm((prev) => ({ ...prev, cover: url }));
+        setBlogForm((prev) => ({ ...prev, coverUrl: url }));
       }
 
       setUploadState((prev) => ({ ...prev, [target]: "success" }));
@@ -1018,11 +1072,26 @@ export function AdminContentPage() {
           ) : null}
           <form className="form" onSubmit={handleBlogSubmit}>
             <label className="form-field">
+              <span>Slug</span>
+              <input
+                value={blogForm.slug}
+                onChange={(event) =>
+                  setBlogForm((prev) => ({ ...prev, slug: slugify(event.target.value) }))
+                }
+                placeholder="my-first-post-2026-02-27"
+                required
+              />
+            </label>
+            <label className="form-field">
               <span>Title</span>
               <input
                 value={blogForm.title}
                 onChange={(event) =>
-                  setBlogForm((prev) => ({ ...prev, title: event.target.value }))
+                  setBlogForm((prev) => ({
+                    ...prev,
+                    title: event.target.value,
+                    slug: prev.slug || slugify(`${event.target.value}-${prev.date ?? ""}`),
+                  }))
                 }
                 required
               />
@@ -1032,10 +1101,29 @@ export function AdminContentPage() {
               <input
                 value={blogForm.date ?? ""}
                 onChange={(event) =>
-                  setBlogForm((prev) => ({ ...prev, date: event.target.value }))
+                  setBlogForm((prev) => ({
+                    ...prev,
+                    date: event.target.value,
+                    slug: prev.slug || slugify(`${prev.title}-${event.target.value}`),
+                  }))
                 }
                 required
               />
+            </label>
+            <label className="form-field">
+              <span>Status</span>
+              <select
+                value={blogForm.status ?? "published"}
+                onChange={(event) =>
+                  setBlogForm((prev) => ({
+                    ...prev,
+                    status: event.target.value as "published" | "draft",
+                  }))
+                }
+              >
+                <option value="published">published</option>
+                <option value="draft">draft</option>
+              </select>
             </label>
             <label className="form-field">
               <span>Upload Cover Image</span>
@@ -1057,6 +1145,20 @@ export function AdminContentPage() {
             {uploadState.blogCover === "error" && uploadMessage.blogCover ? (
               <div className="form-status error">{uploadMessage.blogCover}</div>
             ) : null}
+            {blogForm.coverUrl ? (
+              <div className="small">Cover URL: {blogForm.coverUrl}</div>
+            ) : null}
+            <label className="form-field">
+              <span>Excerpt</span>
+              <textarea
+                rows={2}
+                value={blogForm.excerpt ?? ""}
+                onChange={(event) =>
+                  setBlogForm((prev) => ({ ...prev, excerpt: event.target.value }))
+                }
+                placeholder="Short summary shown in list/card."
+              />
+            </label>
             <label className="form-field">
               <span>Content (one paragraph per line)</span>
               <textarea

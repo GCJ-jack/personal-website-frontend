@@ -5,11 +5,12 @@ import type { Project } from "../../../data/projects";
 
 export type AdminBlogPost = {
   id: string;
-  slug?: string;
+  slug: string;
   title: string;
   date: string | null;
-  cover?: string;
+  coverUrl?: string;
   excerpt?: string;
+  status?: "published" | "draft";
   content: string[];
   tags?: string[];
 };
@@ -48,6 +49,9 @@ function normalizeEntity<T>(payload: AdminEntityResponse<T> | T) {
 function normalizeBlogPost(payload: AdminBlogPost): AdminBlogPost {
   return {
     ...payload,
+    slug: payload.slug ?? "",
+    coverUrl: payload.coverUrl ?? (payload as unknown as { cover?: string }).cover,
+    status: payload.status ?? "published",
     date: payload.date ?? "",
   };
 }
