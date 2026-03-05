@@ -34,7 +34,7 @@ type AdminEntityResponse<T> = {
   data: T;
 };
 
-type AdminCreateInput<T extends { id: string }> = Omit<T, "id"> & { id?: string };
+type AdminCreateInput<T extends { id?: unknown }> = Omit<T, "id"> & { id?: T["id"] };
 
 function normalizeList<T>(payload: AdminListResponse<T> | T[]) {
   return Array.isArray(payload) ? payload : payload.data;
@@ -74,14 +74,14 @@ export function createAdminContentApi(baseUrl: string) {
       );
       return normalizeEntity(payload);
     },
-    async updateProject(id: string, input: Project, token?: string | null) {
+    async updateProject(id: number, input: Project, token?: string | null) {
       const payload = await http.request<AdminEntityResponse<Project> | Project>(
         `/projects/${id}`,
         { method: "PUT", body: input, token },
       );
       return normalizeEntity(payload);
     },
-    async deleteProject(id: string, token?: string | null) {
+    async deleteProject(id: number, token?: string | null) {
       return http.request<{ ok: true }>(`/projects/${id}`, {
         method: "DELETE",
         token,

@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAdminAuth } from "../../app/admin/auth/useAdminAuth";
+import { createLogger } from "../../lib/logger";
 
 type LocationState = {
   from?: string;
 };
+
+const logger = createLogger("AdminLoginPage");
 
 export function AdminLoginPage() {
   const { login, status, error, isConfigured } = useAdminAuth();
@@ -20,6 +23,7 @@ export function AdminLoginPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
+      logger.info("Already authenticated, redirecting", { redirectTo });
       navigate(redirectTo, { replace: true });
     }
   }, [navigate, redirectTo, status]);
@@ -27,10 +31,13 @@ export function AdminLoginPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
+    logger.info("Submitting admin login");
     const ok = await login({ email, password });
     if (ok) {
+      logger.info("Admin login succeeded");
       navigate(redirectTo, { replace: true });
     } else {
+      logger.warn("Admin login failed");
       setMessage("Login failed. Please check your credentials.");
     }
   };

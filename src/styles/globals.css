@@ -177,6 +177,25 @@ section:last-of-type {
   border-color: var(--color-border);
 }
 
+.button.ghost.is-active {
+  border-color: var(--color-text);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-text);
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -267,9 +286,26 @@ section:last-of-type {
 
 .pdf-preview {
   width: 100%;
-  height: 60vh;
+  height: clamp(260px, 42vh, 520px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.pdf-preview-shell {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.pdf-preview-tip {
+  margin: 0;
+}
+
+.modal-mindmap-cover {
+  max-height: 280px;
+  object-fit: cover;
 }
 
 .live-grid {
@@ -373,6 +409,30 @@ section:last-of-type {
   border: 1px solid var(--color-border);
   object-fit: cover;
   aspect-ratio: 16 / 9;
+}
+
+.blog-post-cover {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  height: auto;
+}
+
+.mindmap-cover {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+  aspect-ratio: 16 / 10;
+}
+
+.mindmap-preview-image {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 
 .admin-shell {
@@ -538,8 +598,31 @@ section:last-of-type {
   background: rgba(15, 23, 42, 0.04);
 }
 
+.admin-metric-link {
+  text-decoration: none;
+  color: var(--color-text);
+  border: 1px solid transparent;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.admin-metric-link:hover {
+  border-color: var(--color-border);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.admin-metric-static {
+  border: 1px dashed var(--color-border);
+  background: transparent;
+}
+
 .admin-metric-label {
   font-size: 0.9rem;
+  color: var(--color-muted);
+}
+
+.admin-metric-hint {
+  margin-top: 4px;
+  font-size: 0.75rem;
   color: var(--color-muted);
 }
 
@@ -600,6 +683,89 @@ section:last-of-type {
   font-size: 0.85rem;
   color: var(--color-muted);
   margin-top: 2px;
+}
+
+.admin-todo-body {
+  gap: var(--space-4);
+}
+
+.admin-todo-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 150px auto;
+  gap: var(--space-2);
+}
+
+.admin-todo-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.admin-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-todo-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  padding: 10px 12px;
+}
+
+.admin-todo-item.is-done {
+  opacity: 0.65;
+}
+
+.admin-todo-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.admin-todo-main span {
+  word-break: break-word;
+}
+
+.admin-todo-item.is-done .admin-todo-main span {
+  text-decoration: line-through;
+}
+
+.admin-todo-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.admin-todo-priority {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+}
+
+.admin-todo-priority.is-high {
+  color: #7f1d1d;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.admin-todo-priority.is-medium {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.admin-todo-priority.is-low {
+  color: #1e3a8a;
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
 
 .admin-section {
@@ -772,5 +938,14 @@ section:last-of-type {
 
   .admin-nav {
     grid-template-columns: 1fr;
+  }
+
+  .admin-todo-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-todo-item {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
   }
 }

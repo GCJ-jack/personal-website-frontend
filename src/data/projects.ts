@@ -1,5 +1,6 @@
 export type Project = {
-  id: string;
+  id?: number;
+  slug?: string;
   name: string;
   summary: string;
   stack: string[];
@@ -14,7 +15,8 @@ export type Project = {
 
 export const projects: Project[] = [
   {
-    id: "project-01",
+    id: 1,
+    slug: "project-01",
     name: "Graduation Project",
     summary: "Brief summary of what this project does and why it matters.",
     stack: ["Java", "Spring", "MySQL"],
@@ -30,7 +32,8 @@ export const projects: Project[] = [
     ],
   },
   {
-    id: "project-02",
+    id: 2,
+    slug: "project-02",
     name: "Mindmap Manager",
     summary: "Manage and publish study mindmaps with search and tags.",
     stack: ["React", "Vite", "TypeScript"],

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createAdminAuthApi, type AdminAuthSession, type AdminUser } from "./adminAuthApi";
 import { clearStoredToken, getStoredToken, setStoredToken } from "./adminAuthStorage";
+import { createLogger } from "../../../lib/logger";
 
 type AdminAuthStatus = "idle" | "loading" | "authenticated" | "unauthenticated" | "error";
 
@@ -16,6 +17,7 @@ type AdminAuthContextValue = {
 };
 
 export const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
+const logger = createLogger("AdminAuth");
 
 type AdminAuthProviderProps = {
   children: ReactNode;
@@ -42,6 +44,7 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
 
   const setSessionState = useCallback((session: AdminAuthSession | null, err?: string) => {
     if (!session) {
+      logger.warn("Session unauthenticated", { error: err });
       setUser(null);
       setToken(null);
       setStoredToken(null);
@@ -51,6 +54,7 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     }
 
     const normalized = normalizeSession(session, token);
+    logger.info("Session authenticated", { userId: normalized.user.id, email: normalized.user.email });
     setUser(normalized.user);
     setToken(normalized.token);
     setStoredToken(normalized.token);
@@ -65,11 +69,13 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     }
 
     setStatus("loading");
+    logger.debug("Refreshing admin session");
     try {
       const session = await api.session(token);
       setSessionState(session);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load session.";
+      logger.error("Refresh session failed", { message });
       setSessionState(null, message);
     }
   }, [api, isConfigured, setSessionState, token]);
@@ -81,18 +87,21 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     }
 
     setStatus("loading");
+    logger.info("Login requested", { email: payload.email });
     try {
       const session = await api.login(payload, token);
       setSessionState(session);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed.";
+      logger.warn("Login failed", { email: payload.email, message });
       setSessionState(null, message);
       return false;
     }
   }, [api, isConfigured, setSessionState, token]);
 
   const logout = useCallback(async () => {
+    logger.info("Logout requested");
     if (api && isConfigured) {
       try {
         await api.logout(token);
@@ -105,10 +114,12 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
     setToken(null);
     setStatus("unauthenticated");
     setError(null);
+    logger.info("Logout finished");
   }, [api, isConfigured, token]);
 
   useEffect(() => {
     if (!isConfigured) {
+      logger.warn("Admin auth API not configured");
       setStatus("unauthenticated");
       return;
     }

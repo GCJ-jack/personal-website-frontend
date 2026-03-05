@@ -3,7 +3,9 @@ export type Mindmap = {
   title: string;
   summary?: string;
   tags?: string[];
+  cover?: string;
   file: string;
+  previewUrl?: string;
   updatedAt: string;
 };
 

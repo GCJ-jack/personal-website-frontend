@@ -143,6 +143,19 @@ function extractProjectLinks(project: Project) {
   return list;
 }
 
+function matchesProjectParam(project: Project, param: string | undefined) {
+  if (!param) {
+    return false;
+  }
+  if (project.slug && project.slug === param) {
+    return true;
+  }
+  if (typeof project.id === "number" && String(project.id) === param) {
+    return true;
+  }
+  return false;
+}
+
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [projects, setProjects] = useState<Project[]>(seedProjects);
@@ -177,7 +190,7 @@ export function ProjectDetailPage() {
   }, []);
 
   const project = useMemo(
-    () => projects.find((item) => item.id === projectId),
+    () => projects.find((item) => matchesProjectParam(item, projectId)),
     [projects, projectId],
   );
   const links = useMemo(() => (project ? extractProjectLinks(project) : []), [project]);

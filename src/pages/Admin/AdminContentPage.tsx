@@ -10,7 +10,7 @@ import type { Project } from "../../data/projects";
 type LoadState = "idle" | "loading" | "ready" | "error";
 type FormErrors = string[];
 type ContentPanel = "all" | "projects" | "live" | "mindmaps" | "blog";
-type UploadTarget = "projectCover" | "liveCover" | "liveFile" | "mindmapFile" | "blogCover";
+type UploadTarget = "projectCover" | "liveCover" | "liveFile" | "mindmapFile" | "mindmapCover" | "blogCover";
 type UploadState = "idle" | "uploading" | "success" | "error";
 const logger = createLogger("AdminContent");
 
@@ -20,7 +20,6 @@ function getTodayDate() {
 
 function createEmptyProject(): Project {
   return {
-    id: "",
     name: "",
     summary: "",
     stack: [],
@@ -169,6 +168,9 @@ function resolveUploadDir(target: UploadTarget): string {
   if (target === "mindmapFile") {
     return "mindmaps";
   }
+  if (target === "mindmapCover") {
+    return "mindmaps";
+  }
   return "projects";
 }
 
@@ -182,7 +184,7 @@ export function AdminContentPage() {
   const [projectError, setProjectError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectForm, setProjectForm] = useState<Project>(() => createEmptyProject());
-  const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
+  const [projectEditingId, setProjectEditingId] = useState<number | null>(null);
   const [projectFormErrors, setProjectFormErrors] = useState<FormErrors>([]);
   const [projectStackInput, setProjectStackInput] = useState("");
   const [projectHighlightsInput, setProjectHighlightsInput] = useState("");
@@ -216,6 +218,7 @@ export function AdminContentPage() {
     liveCover: "idle",
     liveFile: "idle",
     mindmapFile: "idle",
+    mindmapCover: "idle",
     blogCover: "idle",
   });
   const [uploadMessage, setUploadMessage] = useState<Record<UploadTarget, string>>({
@@ -223,6 +226,7 @@ export function AdminContentPage() {
     liveCover: "",
     liveFile: "",
     mindmapFile: "",
+    mindmapCover: "",
     blogCover: "",
   });
 
@@ -346,6 +350,7 @@ export function AdminContentPage() {
       mindmapForm.title ? "" : "Mindmap title is required.",
       mindmapForm.file ? "" : "Mindmap file is required. Please upload it first.",
       mindmapForm.file && !isValidUrl(mindmapForm.file) ? "Mindmap file path is invalid." : "",
+      mindmapForm.cover && !isValidUrl(mindmapForm.cover) ? "Mindmap cover must be a URL or /path." : "",
       mindmapForm.updatedAt ? "" : "Updated At is required.",
       mindmapForm.updatedAt && !isValidDate(mindmapForm.updatedAt)
         ? "Updated At must be YYYY or YYYY-MM-DD."
@@ -383,7 +388,7 @@ export function AdminContentPage() {
     if (!validateProject()) {
       return;
     }
-    logger.info("Submitting project form", { mode: projectEditingId ? "update" : "create" });
+    logger.info("Submitting project form", { mode: projectEditingId !== null ? "update" : "create" });
 
     const payload: Project = {
       ...projectForm,
@@ -392,7 +397,7 @@ export function AdminContentPage() {
       links: parseProjectLinksInput(projectLinksInput),
     };
 
-    if (projectEditingId) {
+    if (projectEditingId !== null) {
       const updated = await api.updateProject(projectEditingId, payload, token);
       setProjects((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
@@ -513,7 +518,7 @@ export function AdminContentPage() {
     }
   };
 
-  const deleteProject = async (id: string) => {
+  const deleteProject = async (id: number) => {
     if (!api) {
       return;
     }
@@ -599,6 +604,8 @@ export function AdminContentPage() {
         setLiveForm((prev) => ({ ...prev, file: url }));
       } else if (target === "mindmapFile") {
         setMindmapForm((prev) => ({ ...prev, file: url }));
+      } else if (target === "mindmapCover") {
+        setMindmapForm((prev) => ({ ...prev, cover: url }));
       } else {
         setBlogForm((prev) => ({ ...prev, coverUrl: url }));
       }
@@ -771,9 +778,9 @@ export function AdminContentPage() {
             </label>
             <div className="admin-actions">
               <button className="button" type="submit">
-                {projectEditingId ? "Update Project" : "Create Project"}
+                {projectEditingId !== null ? "Update Project" : "Create Project"}
               </button>
-              {projectEditingId ? (
+              {projectEditingId !== null ? (
                 <button
                   className="button ghost"
                   type="button"
@@ -797,7 +804,7 @@ export function AdminContentPage() {
 
           <div className="admin-table">
             {projects.map((project) => (
-              <div key={project.id} className="admin-row">
+              <div key={project.id ?? project.slug ?? project.name} className="admin-row">
                 <div>
                   <div className="admin-row-title">{project.name}</div>
                   <div className="small">{project.summary}</div>
@@ -807,18 +814,24 @@ export function AdminContentPage() {
                     className="button ghost"
                     type="button"
                     onClick={() => {
-                      setProjectEditingId(project.id);
+                      setProjectEditingId(project.id ?? null);
                       setProjectForm(project);
                       setProjectStackInput(joinLines(project.stack));
                       setProjectHighlightsInput(joinLines(project.highlights));
                     }}
+                    disabled={project.id === undefined}
                   >
                     Edit
                   </button>
                   <button
                     className="button ghost"
                     type="button"
-                    onClick={() => deleteProject(project.id)}
+                    onClick={() => {
+                      if (project.id !== undefined) {
+                        void deleteProject(project.id);
+                      }
+                    }}
+                    disabled={project.id === undefined}
                   >
                     Delete
                   </button>
@@ -1010,6 +1023,27 @@ export function AdminContentPage() {
                 onChange={(event) => setMindmapTagsInput(event.target.value)}
               />
             </label>
+            <label className="form-field">
+              <span>Upload Cover Image</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  void uploadImage("mindmapCover", event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+            {mindmapForm.cover ? <div className="small">Mindmap cover: {mindmapForm.cover}</div> : null}
+            {uploadState.mindmapCover === "uploading" ? (
+              <div className="small">Uploading mindmap cover...</div>
+            ) : null}
+            {uploadState.mindmapCover === "success" && uploadMessage.mindmapCover ? (
+              <div className="form-status success">{uploadMessage.mindmapCover}</div>
+            ) : null}
+            {uploadState.mindmapCover === "error" && uploadMessage.mindmapCover ? (
+              <div className="form-status error">{uploadMessage.mindmapCover}</div>
+            ) : null}
             <label className="form-field">
               <span>Upload Mindmap File</span>
               <input

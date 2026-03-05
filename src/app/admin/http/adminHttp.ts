@@ -1,3 +1,5 @@
+import { createLogger } from "../../../lib/logger";
+
 export type AdminApiError = {
   ok: false;
   error: string;
@@ -5,6 +7,8 @@ export type AdminApiError = {
   status?: number;
   requestId?: string;
 };
+
+const logger = createLogger("AdminHttp");
 
 type AdminHttpRequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -52,8 +56,12 @@ function normalizeError(data: unknown, status?: number): AdminApiError {
 export function createAdminHttpClient(baseUrl: string): AdminHttpClient {
   return {
     async request<T>(path: string, options: AdminHttpRequestOptions = {}) {
-      const response = await fetch(buildUrl(baseUrl, path), {
-        method: options.method ?? "GET",
+      const url = buildUrl(baseUrl, path);
+      const method = options.method ?? "GET";
+      logger.debug("Request start", { method, url });
+
+      const response = await fetch(url, {
+        method,
         credentials: "include",
         headers: {
           ...JSON_HEADERS,
@@ -67,11 +75,13 @@ export function createAdminHttpClient(baseUrl: string): AdminHttpClient {
 
       if (!response.ok || data?.ok === false) {
         const error = normalizeError(data, response.status);
+        logger.warn("Request failed", { method, url, status: response.status, error });
         throw Object.assign(new Error(error.message ?? "Request failed."), {
           details: error,
         });
       }
 
+      logger.debug("Request success", { method, url, status: response.status });
       return data as T;
     },
   };

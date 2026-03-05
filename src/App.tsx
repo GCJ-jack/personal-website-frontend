@@ -4,6 +4,7 @@ import { AdminAuthProvider } from "./app/admin/auth/AdminAuthContext";
 import { AdminProtectedRoute } from "./app/admin/auth/AdminProtectedRoute";
 import { RootLayout } from "./app/layout/RootLayout";
 import { site } from "./data/site";
+import { createLogger } from "./lib/logger";
 import { AdminHomePage } from "./pages/Admin/AdminHomePage";
 import { AdminLoginPage } from "./pages/Admin/AdminLoginPage";
 import { AdminContentPage } from "./pages/Admin/AdminContentPage";
@@ -13,9 +14,13 @@ import { BlogPage } from "./pages/Blog/BlogPage";
 import { HomePage } from "./pages/Home/HomePage";
 import { LivePage } from "./pages/Live/LivePage";
 import { ProjectsPage } from "./pages/Projects/ProjectsPage";
+import { ProjectDetailPage } from "./pages/Projects/ProjectDetailPage";
 import { StudyPage } from "./pages/Study/StudyPage";
 
+const logger = createLogger("Router");
+
 function App() {
+  logger.debug("Rendering route tree");
   return (
     <BrowserRouter>
       <AdminAuthProvider>
@@ -24,6 +29,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/live" element={<LivePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/study" element={<StudyPage />} />
           </Route>

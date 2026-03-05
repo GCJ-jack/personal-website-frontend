@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createAdminContentApi, type AdminComment } from "../../app/admin/data/adminContentApi";
 import { useAdminAuth } from "../../app/admin/auth/useAdminAuth";
+import { createLogger } from "../../lib/logger";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
+const logger = createLogger("AdminCommentsPage");
 
 export function AdminCommentsPage() {
   const { token, isConfigured } = useAdminAuth();
@@ -19,15 +21,18 @@ export function AdminCommentsPage() {
     }
 
     setState("loading");
+    logger.info("Loading admin comments");
     api
       .listComments(token)
       .then((data) => {
         setComments(data);
         setState("ready");
+        logger.info("Loaded admin comments", { count: data.length });
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Failed to load comments.");
         setState("error");
+        logger.error("Failed to load admin comments", err);
       });
   }, [api, isConfigured, token]);
 

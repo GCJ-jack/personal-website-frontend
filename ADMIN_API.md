@@ -145,7 +145,8 @@ Example:
   "links": [
     { "label": "GitHub", "href": "https://github.com/yourname/project" },
     { "label": "Docs", "href": "https://your-docs-link" }
-  ]
+  ],
+  "createdAt": "2026-02-20T08:00:00Z"
 }
 ```
 
@@ -167,7 +168,8 @@ Example:
   "date": "2024-06-18",
   "description": "Show notes or location.",
   "file": "/live/01.mp4",
-  "cover": "/live/01.jpg"
+  "cover": "/live/01.jpg",
+  "createdAt": "2026-02-20T08:00:00Z"
 }
 ```
 
@@ -189,6 +191,7 @@ Example:
   "summary": "Thread model, JUC, locks, and patterns.",
   "tags": ["Java", "JUC"],
   "file": "/mindmaps/java-concurrency.pdf",
+  "createdAt": "2026-02-20T08:00:00Z",
   "updatedAt": "2025-12-01"
 }
 ```
@@ -232,6 +235,123 @@ Example:
   "email": "you@example.com",
   "message": "Your message here.",
   "createdAt": "2026-02-08T12:00:00Z"
+}
+```
+
+### Admin Overview (Dashboard)
+
+Current frontend implementation reads live counts by calling:
+- `GET /api/admin/projects`
+- `GET /api/admin/live-videos`
+- `GET /api/admin/mindmaps`
+- `GET /api/admin/blog-posts`
+- `GET /api/admin/comments`
+
+and computes dashboard metrics in client side.
+
+For backend optimization, you can provide a single aggregate endpoint:
+
+**Overview**: `GET /api/admin/overview`
+
+**Query params (optional)**
+- `range`: `7d` | `30d` | `custom` (default `7d`)
+- `start`: `YYYY-MM-DD` (required when `range=custom`)
+- `end`: `YYYY-MM-DD` (required when `range=custom`)
+- `tz`: IANA timezone, e.g. `Asia/Shanghai` (default `UTC`)
+
+**Response (JSON)**
+```
+{
+  "ok": true,
+  "data": {
+    "today": {
+      "projectsCount": 12,
+      "liveVideosCount": 18,
+      "mindmapsCount": 9,
+      "blogPostsCount": 21,
+      "commentsCount": 54
+    },
+    "recent": {
+      "newContentLast7d": 6,
+      "basedOnField": "createdAt"
+    },
+    "quickLinks": [
+      { "label": "Overview", "href": "/admin", "description": "Snapshots and status." },
+      { "label": "Content", "href": "/admin/content", "description": "Projects, videos, mindmaps, blog." },
+      { "label": "Comments", "href": "/admin/comments", "description": "Read visitor comments." }
+    ]
+  }
+}
+```
+
+**Overview display fields used by frontend**
+- `today.projectsCount` (number)
+- `today.liveVideosCount` (number)
+- `today.mindmapsCount` (number)
+- `today.blogPostsCount` (number)
+- `today.commentsCount` (number)
+- `recent.newContentLast7d` (number, nullable if unavailable)
+- `quickLinks[].label` (string)
+- `quickLinks[].href` (string)
+- `quickLinks[].description` (string, optional)
+
+**Notes**
+- `recent.newContentLast7d` depends on `createdAt` in content records.
+- If `createdAt` is missing everywhere, frontend can show `N/A`.
+
+### My Todo (for Admin Overview)
+
+Frontend currently supports local-only todo via `localStorage`.
+If you want cross-device persistence, add these endpoints:
+
+**List Todos**: `GET /api/admin/todos`
+
+**Create Todo**: `POST /api/admin/todos`
+
+**Update Todo**: `PATCH /api/admin/todos/:id`
+
+**Delete Todo**: `DELETE /api/admin/todos/:id`
+
+**Todo (JSON)**
+```
+{
+  "id": "todo_1740636500000",
+  "title": "Update live page cover",
+  "done": false,
+  "priority": "high",
+  "dueDate": "2026-03-01",
+  "createdAt": "2026-02-27T09:00:00Z",
+  "updatedAt": "2026-02-27T09:00:00Z"
+}
+```
+
+**Create Todo request fields (required/optional)**
+- `title` (string, required, 1-120 chars)
+- `priority` (`high` | `medium` | `low`, optional, default `medium`)
+- `dueDate` (`YYYY-MM-DD`, optional)
+
+**Create Todo request example**
+```
+{
+  "title": "Review comments before publish",
+  "priority": "medium",
+  "dueDate": "2026-03-02"
+}
+```
+
+**Create Todo response example**
+```
+{
+  "ok": true,
+  "data": {
+    "id": "todo_1740636500000",
+    "title": "Review comments before publish",
+    "done": false,
+    "priority": "medium",
+    "dueDate": "2026-03-02",
+    "createdAt": "2026-02-27T09:00:00Z",
+    "updatedAt": "2026-02-27T09:00:00Z"
+  }
 }
 ```
 

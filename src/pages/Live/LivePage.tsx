@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Page } from "../../components/shared/Page";
 import { liveVideos, topRecords, type LiveVideo } from "../../data/liveVideos";
+import { createLogger } from "../../lib/logger";
+
+const logger = createLogger("LivePage");
 
 export function LivePage() {
   const [videos, setVideos] = useState<LiveVideo[]>(liveVideos);
@@ -10,10 +13,12 @@ export function LivePage() {
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_LIVE_API_URL as string | undefined;
     if (!apiUrl) {
+      logger.debug("Using seed live videos (no API URL)");
       return;
     }
 
     const controller = new AbortController();
+    logger.info("Loading live videos from API", { apiUrl });
 
     fetch(apiUrl, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
@@ -21,9 +26,12 @@ export function LivePage() {
         if (Array.isArray(data) && data.length) {
           setVideos(data);
           setActiveId(data[0].id);
+          logger.info("Loaded live videos from API", { count: data.length });
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        logger.warn("Failed to load live videos from API; using seed", err);
+      });
 
     return () => controller.abort();
   }, []);
