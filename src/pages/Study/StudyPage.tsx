@@ -78,22 +78,6 @@ function resolveAssetUrl(
   return trimmed;
 }
 
-type PreviewKind = "pdf" | "image" | "unsupported";
-
-function getPreviewKind(fileUrl: string | null): PreviewKind {
-  if (!fileUrl) {
-    return "unsupported";
-  }
-  const pathname = fileUrl.split("#")[0].split("?")[0].toLowerCase();
-  if (pathname.endsWith(".pdf")) {
-    return "pdf";
-  }
-  if (/\.(png|jpe?g|webp|gif|bmp|svg|avif)$/.test(pathname)) {
-    return "image";
-  }
-  return "unsupported";
-}
-
 function buildPreviewUrl(sourceUrl: string | null, previewApiBase: string) {
   if (!sourceUrl) {
     return null;
@@ -109,17 +93,33 @@ function buildPreviewUrl(sourceUrl: string | null, previewApiBase: string) {
   }
 }
 
+function resolvePreviewApiBase(
+  apiBaseEnv: string | undefined,
+  apiOrigin: string | null,
+  fallbackPath: string,
+) {
+  const value = apiBaseEnv?.trim();
+  if (!value) {
+    return apiOrigin ? `${apiOrigin}${fallbackPath}` : fallbackPath;
+  }
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+  if (value.startsWith("/")) {
+    return apiOrigin ? `${apiOrigin}${value}` : value;
+  }
+  return value;
+}
+
 export function StudyPage() {
   const studyApiUrl = import.meta.env.VITE_STUDY_API_URL as string | undefined;
   const assetBaseUrlEnv = import.meta.env.VITE_ASSET_BASE_URL as string | undefined;
-  const apiOrigin = useMemo(() => getApiOrigin(studyApiUrl), [studyApiUrl]);
   const previewApiBaseEnv = import.meta.env.VITE_FILE_PREVIEW_API_URL as string | undefined;
-  const previewApiBase = useMemo(() => {
-    if (previewApiBaseEnv?.trim()) {
-      return previewApiBaseEnv.trim();
-    }
-    return apiOrigin ? `${apiOrigin}/api/files/preview` : "/api/files/preview";
-  }, [apiOrigin, previewApiBaseEnv]);
+  const apiOrigin = useMemo(() => getApiOrigin(studyApiUrl), [studyApiUrl]);
+  const previewApiBase = useMemo(
+    () => resolvePreviewApiBase(previewApiBaseEnv, apiOrigin, "/api/files/preview"),
+    [apiOrigin, previewApiBaseEnv],
+  );
   const assetBaseUrl = useMemo(() => normalizeBaseUrl(assetBaseUrlEnv), [assetBaseUrlEnv]);
   const [activeMindmap, setActiveMindmap] = useState<Mindmap | null>(null);
   const [maps, setMaps] = useState<Mindmap[]>(seedMindmaps);
@@ -148,25 +148,20 @@ export function StudyPage() {
     return () => controller.abort();
   }, [studyApiUrl]);
 
-  const activeFileUrl = useMemo(
-    () => resolveAssetUrl(activeMindmap?.file, apiOrigin, assetBaseUrl),
-    [activeMindmap?.file, apiOrigin, assetBaseUrl],
-  );
-  const activePreviewSourceUrl = useMemo(
-    () => resolveAssetUrl(activeMindmap?.previewUrl ?? activeMindmap?.file, apiOrigin, assetBaseUrl),
-    [activeMindmap?.previewUrl, activeMindmap?.file, apiOrigin, assetBaseUrl],
-  );
-  const activeOpenUrl = useMemo(
-    () => buildPreviewUrl(activePreviewSourceUrl, previewApiBase),
-    [activePreviewSourceUrl, previewApiBase],
-  );
   const activeCoverUrl = useMemo(
     () => resolveAssetUrl(activeMindmap?.cover, apiOrigin, assetBaseUrl),
     [activeMindmap?.cover, apiOrigin, assetBaseUrl],
   );
-  const activePreviewKind = useMemo(
-    () => getPreviewKind(activePreviewSourceUrl),
-    [activePreviewSourceUrl],
+  const activeFileUrl = useMemo(
+    () => resolveAssetUrl(activeMindmap?.file, apiOrigin, assetBaseUrl),
+    [activeMindmap?.file, apiOrigin, assetBaseUrl],
+  );
+  const activeOpenUrl = useMemo(
+    () => buildPreviewUrl(
+      resolveAssetUrl(activeMindmap?.previewUrl ?? activeMindmap?.file, apiOrigin, assetBaseUrl),
+      previewApiBase,
+    ),
+    [activeMindmap?.previewUrl, activeMindmap?.file, apiOrigin, assetBaseUrl, previewApiBase],
   );
 
   return (
@@ -188,21 +183,24 @@ export function StudyPage() {
         <div className="stack">
           <div className="stack">
             <h2>Mindmaps</h2>
-            <p className="small">Browse, preview, and download study mindmaps.</p>
+            <p className="small">Cover gallery for study mindmaps.</p>
           </div>
           <div className="grid-3">
             {maps.map((map) => {
-              const fileUrl = resolveAssetUrl(map.file, apiOrigin, assetBaseUrl);
-              const previewSourceUrl = resolveAssetUrl(map.previewUrl ?? map.file, apiOrigin, assetBaseUrl);
-              const openUrl = buildPreviewUrl(previewSourceUrl, previewApiBase);
               const coverUrl = resolveAssetUrl(map.cover, apiOrigin, assetBaseUrl);
-              const canOpen = Boolean(openUrl);
+              const fileUrl = resolveAssetUrl(map.file, apiOrigin, assetBaseUrl);
+              const openUrl = buildPreviewUrl(
+                resolveAssetUrl(map.previewUrl ?? map.file, apiOrigin, assetBaseUrl),
+                previewApiBase,
+              );
 
               return (
                 <div key={map.id} className="card stack">
                   {coverUrl ? (
                     <img src={coverUrl} alt={`${map.title} cover`} className="mindmap-cover" />
-                  ) : null}
+                  ) : (
+                    <div className="small">No cover image</div>
+                  )}
                   <div className="stack">
                     <h3>{map.title}</h3>
                     {map.summary ? <p>{map.summary}</p> : null}
@@ -216,16 +214,12 @@ export function StudyPage() {
                       </div>
                     ) : null}
                     <div className="small">Updated {map.updatedAt}</div>
-                    {!canOpen ? (
-                      <div className="small">File URL is not available for this record.</div>
-                    ) : null}
                   </div>
                   <div className="card-actions">
                     <button
                       className="button"
                       type="button"
                       onClick={() => setActiveMindmap(map)}
-                      disabled={!canOpen}
                     >
                       Review
                     </button>
@@ -282,31 +276,9 @@ export function StudyPage() {
                 alt={`${activeMindmap.title} cover`}
                 className="mindmap-cover modal-mindmap-cover"
               />
-            ) : null}
-            {activePreviewKind === "pdf" && activeOpenUrl ? (
-              <div className="pdf-preview-shell stack">
-                <iframe
-                  src={activeOpenUrl}
-                  title={`${activeMindmap.title} PDF preview`}
-                  className="pdf-preview"
-                />
-                <p className="small pdf-preview-tip">
-                  This preview is served via the app preview API to force inline display.
-                </p>
-              </div>
-            ) : null}
-            {activePreviewKind === "image" && activeOpenUrl ? (
-              <img
-                src={activeOpenUrl}
-                alt={`${activeMindmap.title} preview`}
-                className="mindmap-preview-image"
-              />
-            ) : null}
-            {activePreviewKind === "unsupported" ? (
-              <p className="small">
-                This file cannot be previewed inline. Use Open to view it in a new tab.
-              </p>
-            ) : null}
+            ) : (
+              <p className="small">No cover image for this mindmap.</p>
+            )}
             <div className="card-actions">
               {activeOpenUrl ? (
                 <a

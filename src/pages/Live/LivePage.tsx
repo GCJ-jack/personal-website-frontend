@@ -5,13 +5,67 @@ import { createLogger } from "../../lib/logger";
 
 const logger = createLogger("LivePage");
 
+function getApiOrigin(apiUrl?: string) {
+  if (!apiUrl) {
+    return null;
+  }
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+function resolveStreamApiBase(
+  apiBaseEnv: string | undefined,
+  apiOrigin: string | null,
+  fallbackPath: string,
+) {
+  const value = apiBaseEnv?.trim();
+  if (!value) {
+    return apiOrigin ? `${apiOrigin}${fallbackPath}` : fallbackPath;
+  }
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+  if (value.startsWith("/")) {
+    return apiOrigin ? `${apiOrigin}${value}` : value;
+  }
+  return value;
+}
+
+function buildStreamUrl(source: string | undefined, streamApiBase: string) {
+  if (!source) {
+    return null;
+  }
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const resolvedSource = new URL(trimmed, window.location.href).toString();
+    const endpoint = new URL(streamApiBase, window.location.origin);
+    endpoint.searchParams.set("key", resolvedSource);
+    return endpoint.toString();
+  } catch {
+    const joiner = streamApiBase.includes("?") ? "&" : "?";
+    return `${streamApiBase}${joiner}key=${encodeURIComponent(trimmed)}`;
+  }
+}
+
 export function LivePage() {
+  const liveApiUrl = import.meta.env.VITE_LIVE_API_URL as string | undefined;
+  const liveApiOrigin = useMemo(() => getApiOrigin(liveApiUrl), [liveApiUrl]);
+  const streamApiBaseEnv = import.meta.env.VITE_FILE_STREAM_API_URL as string | undefined;
+  const streamApiBase = useMemo(() => {
+    return resolveStreamApiBase(streamApiBaseEnv, liveApiOrigin, "/api/files/stream");
+  }, [liveApiOrigin, streamApiBaseEnv]);
   const [videos, setVideos] = useState<LiveVideo[]>(liveVideos);
   const [activeId, setActiveId] = useState(liveVideos[0]?.id ?? "");
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_LIVE_API_URL as string | undefined;
+    const apiUrl = liveApiUrl;
     if (!apiUrl) {
       logger.debug("Using seed live videos (no API URL)");
       return;
@@ -34,11 +88,15 @@ export function LivePage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [liveApiUrl]);
 
   const activeVideo = useMemo<LiveVideo | undefined>(() => {
     return videos.find((video) => video.id === activeId) ?? videos[0];
   }, [activeId, videos]);
+  const activeStreamUrl = useMemo(
+    () => buildStreamUrl(activeVideo?.file, streamApiBase),
+    [activeVideo?.file, streamApiBase],
+  );
 
   return (
     <Page
@@ -53,9 +111,10 @@ export function LivePage() {
               <>
                 <div className="video-frame">
                   <video
-                    key={activeVideo.file}
-                    src={activeVideo.file}
+                    key={activeStreamUrl ?? activeVideo.file}
+                    src={activeStreamUrl ?? undefined}
                     controls
+                    preload="metadata"
                     muted
                     className="video-player"
                     poster={activeVideo.cover}

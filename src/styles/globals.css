@@ -304,8 +304,9 @@ section:last-of-type {
 }
 
 .modal-mindmap-cover {
-  max-height: 280px;
-  object-fit: cover;
+  max-height: min(62vh, 640px);
+  object-fit: contain;
+  background: #f8fafc;
 }
 
 .live-grid {
@@ -422,8 +423,10 @@ section:last-of-type {
   width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  object-fit: cover;
-  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  background: #f8fafc;
+  max-height: clamp(180px, 34vw, 340px);
+  height: auto;
 }
 
 .mindmap-preview-image {
