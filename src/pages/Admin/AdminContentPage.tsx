@@ -580,9 +580,6 @@ export function AdminContentPage() {
       const response = await fetch(uploadApiUrl, {
         method: "POST",
         credentials: "include",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: formData,
       });
 

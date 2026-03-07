@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Page } from "../../components/shared/Page";
 import { createLogger } from "../../lib/logger";
 
@@ -20,12 +20,37 @@ type PublicBlogListResponse = {
   data: PublicBlogPost[];
 };
 
+type PublicComment = {
+  id: string | number;
+  postId: string | number;
+  name: string;
+  websiteUrl?: string | null;
+  message: string;
+  createdAt: string | null;
+  adminReply?: boolean;
+  replies?: PublicComment[];
+};
+
+type PublicCommentListResponse = {
+  ok: true;
+  data: PublicComment[];
+};
+
 type SubscribeCreateResponse = {
   ok: true;
   id?: string;
   numericId?: number;
-  createdAt: string;
+  createdAt?: string | null;
 };
+
+type PublicCommentCreateResponse = {
+  ok: true;
+  id?: string;
+  numericId?: number;
+  createdAt?: string | null;
+};
+
+type CommentSubmitState = "idle" | "submitting" | "success" | "error";
 
 function resolveSubscriberId(payload: SubscribeCreateResponse) {
   if (payload.id) {
@@ -41,18 +66,105 @@ function normalizePosts(payload: PublicBlogListResponse | PublicBlogPost[]) {
   return Array.isArray(payload) ? payload : payload.data;
 }
 
+function normalizeComment(comment: PublicComment): PublicComment {
+  return {
+    ...comment,
+    replies: Array.isArray(comment.replies)
+      ? comment.replies.map((reply) => normalizeComment(reply))
+      : [],
+  };
+}
+
+function normalizeComments(payload: PublicCommentListResponse | PublicComment[]) {
+  const list = Array.isArray(payload) ? payload : payload.data;
+  return Array.isArray(list) ? list.map((comment) => normalizeComment(comment)) : [];
+}
+
+function buildCommentsUrl(baseUrl: string, postId: string | number) {
+  const delimiter = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${delimiter}postId=${encodeURIComponent(String(postId))}`;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
+function toSafeHttpUrl(value?: string | null) {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) {
+    return null;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function PublicCommentItem({ comment, depth = 0 }: { comment: PublicComment; depth?: number }) {
+  const replies = comment.replies ?? [];
+  const safeWebsiteUrl = toSafeHttpUrl(comment.websiteUrl);
+
+  return (
+    <div className="stack" style={{ marginLeft: `${depth * 16}px` }}>
+      <article className="card stack">
+        <div className="small">
+          {safeWebsiteUrl ? (
+            <a href={safeWebsiteUrl} target="_blank" rel="noreferrer">
+              {comment.name}
+            </a>
+          ) : (
+            comment.name
+          )}
+          {comment.adminReply ? " · Admin Reply" : ""}
+          {comment.createdAt ? ` · ${formatDateTime(comment.createdAt)}` : ""}
+        </div>
+        <p>{comment.message}</p>
+      </article>
+      {replies.map((reply) => (
+        <PublicCommentItem key={String(reply.id)} comment={reply} depth={depth + 1} />
+      ))}
+    </div>
+  );
+}
+
 const logger = createLogger("BlogPage");
 
 export function BlogPage() {
-  const [postsState, setPostsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [postsState, setPostsState] = useState<"idle" | "loading" | "ready" | "error">("loading");
   const [posts, setPosts] = useState<PublicBlogPost[]>([]);
+  const [commentsState, setCommentsState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsByPostId, setCommentsByPostId] = useState<Record<string, PublicComment[]>>({});
+  const [commentSubmitStateByPostId, setCommentSubmitStateByPostId] = useState<Record<string, CommentSubmitState>>({});
+  const [commentSubmitMessageByPostId, setCommentSubmitMessageByPostId] = useState<Record<string, string>>({});
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "success" | "error">("idle");
   const [lastSubscriberId, setLastSubscriberId] = useState<string | null>(null);
+  const commentsApiUrl = (import.meta.env.VITE_COMMENTS_API_URL as string | undefined) ?? "/api/comments";
+
+  const fetchCommentsForPost = useCallback(async (postId: string | number) => {
+    const response = await fetch(buildCommentsUrl(commentsApiUrl, postId), { method: "GET" });
+    if (!response.ok) {
+      throw new Error(`Failed comments request for post ${String(postId)}: ${response.status}`);
+    }
+    const payload = (await response.json()) as PublicCommentListResponse | PublicComment[];
+    return normalizeComments(payload);
+  }, [commentsApiUrl]);
 
   useEffect(() => {
     const apiUrl = (import.meta.env.VITE_BLOG_API_URL as string | undefined) ?? "/api/blog-posts";
     logger.info("Loading public blog posts", { apiUrl });
-    setPostsState("loading");
 
     fetch(apiUrl, { method: "GET" })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
@@ -67,6 +179,141 @@ export function BlogPage() {
         logger.warn("Failed to load public blog posts", err);
       });
   }, []);
+
+  useEffect(() => {
+    if (postsState !== "ready") {
+      return;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) {
+        return;
+      }
+
+      if (posts.length === 0) {
+        setCommentsByPostId({});
+        setCommentsError(null);
+        setCommentsState("ready");
+        return;
+      }
+
+      setCommentsState("loading");
+      setCommentsError(null);
+      logger.info("Loading public comments", { apiUrl: commentsApiUrl, postCount: posts.length });
+
+      Promise.allSettled(
+        posts.map(async (post) => {
+          return {
+            postId: String(post.id),
+            comments: await fetchCommentsForPost(post.id),
+          };
+        }),
+      )
+        .then((results) => {
+          if (!active) {
+            return;
+          }
+
+          const next: Record<string, PublicComment[]> = {};
+          let failedCount = 0;
+
+          results.forEach((result) => {
+            if (result.status === "fulfilled") {
+              next[result.value.postId] = result.value.comments;
+              return;
+            }
+            failedCount += 1;
+            logger.warn("Failed to load comments for one post", result.reason);
+          });
+
+          setCommentsByPostId(next);
+          if (failedCount > 0) {
+            setCommentsError(`Failed to load comments for ${failedCount} post(s).`);
+            setCommentsState(Object.keys(next).length > 0 ? "ready" : "error");
+            return;
+          }
+
+          setCommentsState("ready");
+          logger.info("Loaded public comments", { postCount: Object.keys(next).length });
+        })
+        .catch((err) => {
+          if (!active) {
+            return;
+          }
+          setCommentsState("error");
+          setCommentsError("Failed to load comments.");
+          logger.error("Failed to load public comments", err);
+        });
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [posts, postsState, commentsApiUrl, fetchCommentsForPost]);
+
+  const handleCommentSubmit = async (postId: string, event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const name = String(formData.get("name") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const websiteUrl = String(formData.get("websiteUrl") ?? "").trim();
+    const message = String(formData.get("message") ?? "").trim();
+    const notifyReply = formData.get("notifyReply") === "on";
+
+    if (!name || !message) {
+      setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "error" }));
+      setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Name and message are required." }));
+      return;
+    }
+
+    setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "submitting" }));
+    setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "" }));
+
+    try {
+      const response = await fetch(commentsApiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          postId,
+          parentId: null,
+          name,
+          email: email || undefined,
+          websiteUrl: websiteUrl || undefined,
+          message,
+          notifyReply,
+        }),
+      });
+
+      if (!response.ok) {
+        setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "error" }));
+        setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Failed to submit comment." }));
+        logger.warn("Submit comment failed", { postId, status: response.status });
+        return;
+      }
+
+      const createdPayload = (await response.json().catch(() => null)) as PublicCommentCreateResponse | null;
+      if (createdPayload?.numericId !== undefined) {
+        logger.info("Comment created with numericId", { postId, numericId: createdPayload.numericId });
+      }
+
+      const comments = await fetchCommentsForPost(postId);
+      setCommentsByPostId((prev) => ({ ...prev, [postId]: comments }));
+      setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "success" }));
+      setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Comment submitted." }));
+      form.reset();
+      logger.info("Submit comment succeeded", { postId });
+    } catch (err) {
+      setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "error" }));
+      setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Failed to submit comment." }));
+      logger.error("Submit comment exception", { postId, err });
+    }
+  };
 
   const handleSubscribe = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,6 +400,60 @@ export function BlogPage() {
                   ))}
                 </div>
               ) : null}
+              <section className="comment-box stack">
+                <h4>Comments</h4>
+                {commentsState === "loading" ? <p className="small">Loading comments...</p> : null}
+                {commentsState === "error" ? (
+                  <p className="form-status error">Failed to load comments.</p>
+                ) : null}
+                {commentsError && commentsState === "ready" ? (
+                  <p className="small">{commentsError}</p>
+                ) : null}
+                {commentsState === "ready" && (commentsByPostId[String(post.id)] ?? []).length === 0 ? (
+                  <p className="small">No comments yet.</p>
+                ) : null}
+                {(commentsByPostId[String(post.id)] ?? []).map((comment) => (
+                  <PublicCommentItem key={String(comment.id)} comment={comment} />
+                ))}
+                <form className="form" onSubmit={(event) => void handleCommentSubmit(String(post.id), event)}>
+                  <label className="form-field">
+                    <span>Name</span>
+                    <input name="name" type="text" placeholder="Your name" required />
+                  </label>
+                  <label className="form-field">
+                    <span>Email (optional)</span>
+                    <input name="email" type="email" placeholder="you@example.com" />
+                  </label>
+                  <label className="form-field">
+                    <span>Website (optional)</span>
+                    <input name="websiteUrl" type="url" placeholder="https://example.com" />
+                  </label>
+                  <label className="form-field">
+                    <span>Message</span>
+                    <textarea name="message" rows={4} placeholder="Write your comment..." required />
+                  </label>
+                  <label className="small">
+                    <input name="notifyReply" type="checkbox" /> Notify me about replies
+                  </label>
+                  <button
+                    className="button"
+                    type="submit"
+                    disabled={commentSubmitStateByPostId[String(post.id)] === "submitting"}
+                  >
+                    {commentSubmitStateByPostId[String(post.id)] === "submitting" ? "Submitting..." : "Leave Comment"}
+                  </button>
+                  {commentSubmitStateByPostId[String(post.id)] === "success" ? (
+                    <div className="form-status success">
+                      {commentSubmitMessageByPostId[String(post.id)] || "Comment submitted."}
+                    </div>
+                  ) : null}
+                  {commentSubmitStateByPostId[String(post.id)] === "error" ? (
+                    <div className="form-status error">
+                      {commentSubmitMessageByPostId[String(post.id)] || "Failed to submit comment."}
+                    </div>
+                  ) : null}
+                </form>
+              </section>
             </article>
           ))}
         </div>

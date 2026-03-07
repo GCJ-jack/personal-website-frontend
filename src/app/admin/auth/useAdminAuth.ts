@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { AdminAuthContext } from "./AdminAuthContext";
+import { AdminAuthContext } from "./adminAuthContextStore";
 
 export function useAdminAuth() {
   const ctx = useContext(AdminAuthContext);
@@ -8,4 +8,3 @@ export function useAdminAuth() {
   }
   return ctx;
 }
-

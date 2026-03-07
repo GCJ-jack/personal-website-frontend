@@ -1,22 +1,8 @@
-import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createAdminAuthApi, type AdminAuthSession, type AdminUser } from "./adminAuthApi";
 import { clearStoredToken, getStoredToken, setStoredToken } from "./adminAuthStorage";
+import { AdminAuthContext, type AdminAuthContextValue, type AdminAuthStatus } from "./adminAuthContextStore";
 import { createLogger } from "../../../lib/logger";
-
-type AdminAuthStatus = "idle" | "loading" | "authenticated" | "unauthenticated" | "error";
-
-type AdminAuthContextValue = {
-  status: AdminAuthStatus;
-  user: AdminUser | null;
-  token: string | null;
-  error: string | null;
-  isConfigured: boolean;
-  login: (payload: { email: string; password: string }) => Promise<boolean>;
-  logout: () => Promise<void>;
-  refresh: () => Promise<void>;
-};
-
-export const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 const logger = createLogger("AdminAuth");
 
 type AdminAuthProviderProps = {
@@ -37,7 +23,7 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
   const isConfigured = Boolean(apiUrl);
   const api = useMemo(() => (apiUrl ? createAdminAuthApi(apiUrl) : null), [apiUrl]);
 
-  const [status, setStatus] = useState<AdminAuthStatus>("idle");
+  const [status, setStatus] = useState<AdminAuthStatus>(isConfigured ? "idle" : "unauthenticated");
   const [user, setUser] = useState<AdminUser | null>(null);
   const [token, setToken] = useState<string | null>(getStoredToken());
   const [error, setError] = useState<string | null>(null);
@@ -120,10 +106,12 @@ export function AdminAuthProvider({ children }: AdminAuthProviderProps) {
   useEffect(() => {
     if (!isConfigured) {
       logger.warn("Admin auth API not configured");
-      setStatus("unauthenticated");
       return;
     }
-    void refresh();
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [isConfigured, refresh]);
 
   const value = useMemo<AdminAuthContextValue>(() => ({

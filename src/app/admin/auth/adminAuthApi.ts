@@ -14,6 +14,12 @@ export type AdminAuthSession = {
 };
 
 export type AdminAuthResponse = AdminAuthSession & { ok: true };
+type AdminApiAck = {
+  ok: boolean;
+  data?: unknown | null;
+  error?: string | null;
+  message?: string | null;
+};
 
 type AdminAuthPayload = {
   email: string;
@@ -38,7 +44,7 @@ export function createAdminAuthApi(baseUrl: string) {
       });
     },
     async logout(token?: string | null) {
-      return http.request<{ ok: true }>("/auth/logout", {
+      return http.request<AdminApiAck>("/auth/logout", {
         method: "POST",
         token,
       });

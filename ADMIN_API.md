@@ -2,6 +2,8 @@
 
 This document describes the optional backend APIs used to drive page data.
 If an API URL is not provided, the site falls back to local `src/data/*.ts`.
+Note: `/projects` no longer ships built-in demo items; without `VITE_PROJECTS_API_URL`,
+the page will render an empty list.
 
 ## Environment Variables
 
@@ -22,9 +24,8 @@ VITE_SUBSCRIBE_API_URL=https://your-domain.com/api/subscribers
 
 **Base URL**: `VITE_ADMIN_API_URL`
 
-The frontend expects JSON responses with `{ ok: true, user, token?, expiresAt? }` and
-uses `credentials: "include"` for cookie-based sessions. If you issue JWT tokens,
-return `token` and the frontend will persist it in `localStorage`.
+The frontend uses `credentials: "include"` and treats cookie session as the primary
+auth mechanism.
 
 ### Admin API Conventions
 
@@ -59,7 +60,6 @@ All admin endpoints should return JSON. Error responses should follow:
     "email": "admin@example.com",
     "roles": ["admin"]
   },
-  "token": "jwt-token-if-used",
   "expiresAt": "2026-02-08T12:00:00Z"
 }
 ```
@@ -85,12 +85,17 @@ All admin endpoints should return JSON. Error responses should follow:
 
 **Response (JSON)**
 ```
-{ "ok": true }
+{
+  "ok": true,
+  "data": null,
+  "error": null,
+  "message": null
+}
 ```
 
 ## Admin Content APIs
 
-All endpoints below require admin auth (cookie session or `Authorization: Bearer <token>`).
+All endpoints below require admin auth (cookie session).
 Responses use `{ ok: true, data: ... }` for objects/arrays, and errors use the shared
 error format in the Admin API Conventions section.
 
@@ -103,6 +108,7 @@ error format in the Admin API Conventions section.
 **Request**: `multipart/form-data`
 - field: `file`
 - field: `dir` (recommended): `projects` | `mindmaps` | `live`
+- field: `source` (optional): alias of `dir`
 
 **Response (JSON)**: return a URL/path that frontend can store in `cover`/`file`.
 The frontend accepts any of these fields (root or nested under `data`):
@@ -145,8 +151,7 @@ Example:
   "links": [
     { "label": "GitHub", "href": "https://github.com/yourname/project" },
     { "label": "Docs", "href": "https://your-docs-link" }
-  ],
-  "createdAt": "2026-02-20T08:00:00Z"
+  ]
 }
 ```
 
@@ -168,8 +173,7 @@ Example:
   "date": "2024-06-18",
   "description": "Show notes or location.",
   "file": "/live/01.mp4",
-  "cover": "/live/01.jpg",
-  "createdAt": "2026-02-20T08:00:00Z"
+  "cover": "/live/01.jpg"
 }
 ```
 
@@ -191,7 +195,6 @@ Example:
   "summary": "Thread model, JUC, locks, and patterns.",
   "tags": ["Java", "JUC"],
   "file": "/mindmaps/java-concurrency.pdf",
-  "createdAt": "2026-02-20T08:00:00Z",
   "updatedAt": "2025-12-01"
 }
 ```
@@ -222,7 +225,7 @@ Example:
 }
 ```
 
-### Comments (Read-only for Admin)
+### Comments
 
 **List**: `GET /api/admin/comments`
 
@@ -235,6 +238,48 @@ Example:
   "email": "you@example.com",
   "message": "Your message here.",
   "createdAt": "2026-02-08T12:00:00Z"
+}
+```
+
+**Reply**: `POST /api/admin/comments/{id}/reply`
+
+**Request (JSON)**
+```
+{
+  "message": "感谢你的留言，我这边补充一下..."
+}
+```
+
+**Response (JSON)**
+```
+{
+  "ok": true,
+  "data": {
+    "id": 123,
+    "postId": 10,
+    "parentId": 99,
+    "name": "Admin",
+    "email": null,
+    "websiteUrl": null,
+    "message": "感谢你的留言，我这边补充一下...",
+    "isAdminReply": true,
+    "notifyReply": false,
+    "status": "approved",
+    "createdAt": null,
+    "repliedAt": "2026-03-07T16:30:00"
+  },
+  "error": null,
+  "message": null
+}
+```
+
+**Error (JSON)**
+```
+{
+  "ok": false,
+  "data": null,
+  "error": "ValidationError",
+  "message": "reply message is required"
 }
 ```
 
@@ -257,7 +302,7 @@ For backend optimization, you can provide a single aggregate endpoint:
 - `range`: `7d` | `30d` | `custom` (default `7d`)
 - `start`: `YYYY-MM-DD` (required when `range=custom`)
 - `end`: `YYYY-MM-DD` (required when `range=custom`)
-- `tz`: IANA timezone, e.g. `Asia/Shanghai` (default `UTC`)
+- `tz`: IANA timezone, e.g. `Asia/Shanghai` (default backend system timezone)
 
 **Response (JSON)**
 ```
@@ -268,7 +313,6 @@ For backend optimization, you can provide a single aggregate endpoint:
       "projectsCount": 12,
       "liveVideosCount": 18,
       "mindmapsCount": 9,
-      "blogPostsCount": 21,
       "commentsCount": 54
     },
     "recent": {
@@ -288,7 +332,7 @@ For backend optimization, you can provide a single aggregate endpoint:
 - `today.projectsCount` (number)
 - `today.liveVideosCount` (number)
 - `today.mindmapsCount` (number)
-- `today.blogPostsCount` (number)
+- `today.blogPostsCount` (number, optional)
 - `today.commentsCount` (number)
 - `recent.newContentLast7d` (number, nullable if unavailable)
 - `quickLinks[].label` (string)
@@ -358,6 +402,8 @@ If you want cross-device persistence, add these endpoints:
 ## Projects Page
 
 **Endpoint**: `GET /api/projects`
+
+If `VITE_PROJECTS_API_URL` is not configured, frontend fallback is an empty list (`[]`).
 
 **Response (JSON)**
 ```
@@ -455,6 +501,7 @@ If you want cross-device persistence, add these endpoints:
 {
   "ok": true,
   "id": "comment-123",
+  "numericId": 123,
   "createdAt": "2026-02-08T12:00:00Z"
 }
 ```
@@ -484,9 +531,24 @@ postId=1
   "data": [
     {
       "id": "comment-123",
+      "postId": 1,
       "name": "Jack",
+      "websiteUrl": "https://example.com",
+      "adminReply": false,
       "message": "Great blog!",
-      "createdAt": "2026-02-08T12:00:00Z"
+      "createdAt": "2026-02-08T12:00:00Z",
+      "replies": [
+        {
+          "id": "comment-124",
+          "postId": 1,
+          "name": "Admin",
+          "websiteUrl": null,
+          "adminReply": true,
+          "message": "Thanks for your message.",
+          "createdAt": "2026-02-08T12:30:00Z",
+          "replies": []
+        }
+      ]
     }
   ]
 }
@@ -509,6 +571,7 @@ postId=1
 {
   "ok": true,
   "id": "subscriber-456",
+  "numericId": 456,
   "createdAt": "2026-02-08T12:00:00Z"
 }
 ```
@@ -526,6 +589,9 @@ postId=1
 
 - `cover` and `file` paths can be served from your backend or a CDN.
 - Admin UI now supports direct upload and auto-fills `cover` / `file` using upload response URL.
+- `createdAt` is optional for resource objects; frontend should not rely on it as required.
+- Admin comment reply may trigger notification emails server-side when `notifyReply=true` and email exists.
+  This email sending is best-effort and does not affect reply API success.
 - If you host assets in `public/`, use absolute paths like `/live/01.mp4`.
 - The frontend expects an array. If your API returns `{ data: [...] }`,
   you will need to adjust the fetch logic accordingly.

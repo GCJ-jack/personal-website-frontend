@@ -408,8 +408,10 @@ section:last-of-type {
   width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  object-fit: cover;
-  aspect-ratio: 16 / 9;
+  height: auto;
+  object-fit: contain;
+  background: #f8fafc;
+  max-height: clamp(220px, 48vw, 560px);
 }
 
 .blog-post-cover {
@@ -423,10 +425,10 @@ section:last-of-type {
   width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+  height: auto;
   object-fit: contain;
   background: #f8fafc;
-  max-height: clamp(180px, 34vw, 340px);
-  height: auto;
+  max-height: clamp(220px, 50vw, 620px);
 }
 
 .mindmap-preview-image {

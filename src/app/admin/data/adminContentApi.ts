@@ -16,12 +16,20 @@ export type AdminBlogPost = {
 };
 
 export type AdminComment = {
-  id: string;
-  postId: number;
+  id: string | number;
+  postId: string | number;
   name: string;
-  email: string;
+  email?: string;
+  websiteUrl?: string | null;
   message: string;
-  createdAt: string;
+  createdAt: string | null;
+  adminReply?: boolean;
+  isAdminReply?: boolean;
+  replies?: AdminComment[];
+  parentId?: string | number | null;
+  notifyReply?: boolean;
+  status?: "pending" | "approved" | "rejected" | "spam" | "deleted" | string;
+  repliedAt?: string | null;
 };
 
 type AdminListResponse<T> = {
@@ -53,6 +61,17 @@ function normalizeBlogPost(payload: AdminBlogPost): AdminBlogPost {
     coverUrl: payload.coverUrl ?? (payload as unknown as { cover?: string }).cover,
     status: payload.status ?? "published",
     date: payload.date ?? "",
+  };
+}
+
+function normalizeComment(payload: AdminComment): AdminComment {
+  return {
+    ...payload,
+    createdAt: payload.createdAt ?? null,
+    adminReply: payload.adminReply ?? payload.isAdminReply ?? false,
+    replies: Array.isArray(payload.replies)
+      ? payload.replies.map((reply) => normalizeComment(reply))
+      : [],
   };
 }
 
@@ -177,7 +196,19 @@ export function createAdminContentApi(baseUrl: string) {
         "/comments",
         { token },
       );
-      return normalizeList(payload);
+      return normalizeList(payload).map(normalizeComment);
+    },
+
+    async replyComment(
+      id: string | number,
+      input: { message: string },
+      token?: string | null,
+    ) {
+      const payload = await http.request<AdminEntityResponse<AdminComment> | AdminComment>(
+        `/comments/${id}/reply`,
+        { method: "POST", body: input, token },
+      );
+      return normalizeComment(normalizeEntity(payload));
     },
   };
 }

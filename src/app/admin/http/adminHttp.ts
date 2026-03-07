@@ -65,7 +65,6 @@ export function createAdminHttpClient(baseUrl: string): AdminHttpClient {
         credentials: "include",
         headers: {
           ...JSON_HEADERS,
-          ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
           ...(options.headers ?? {}),
         },
         body: options.body ? JSON.stringify(options.body) : undefined,

@@ -143,9 +143,6 @@ export function LivePage() {
                     >
                       Fullscreen
                     </button>
-                    <a className="button ghost" href={activeVideo.file} download>
-                      Download
-                    </a>
                   </div>
                 </div>
               </>
