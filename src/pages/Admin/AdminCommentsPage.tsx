@@ -46,6 +46,62 @@ function normalizeAdminComment(comment: AdminComment): AdminComment {
   };
 }
 
+function flattenComments(input: AdminComment[]) {
+  const result: AdminComment[] = [];
+
+  const walk = (items: AdminComment[]) => {
+    items.forEach((item) => {
+      result.push({
+        ...item,
+        replies: [],
+      });
+      if (item.replies?.length) {
+        walk(item.replies);
+      }
+    });
+  };
+
+  walk(input);
+  return result;
+}
+
+function buildCommentTree(input: AdminComment[]) {
+  const flat = flattenComments(input);
+  const map = new Map<string, AdminComment>();
+  const order: string[] = [];
+
+  flat.forEach((item) => {
+    const key = String(item.id);
+    if (map.has(key)) {
+      return;
+    }
+    map.set(key, { ...item, replies: [] });
+    order.push(key);
+  });
+
+  const roots: AdminComment[] = [];
+
+  order.forEach((key) => {
+    const node = map.get(key);
+    if (!node) {
+      return;
+    }
+
+    const parentId = node.parentId;
+    if (parentId !== null && parentId !== undefined) {
+      const parent = map.get(String(parentId));
+      if (parent && String(parent.id) !== String(node.id)) {
+        parent.replies = [...(parent.replies ?? []), node];
+        return;
+      }
+    }
+
+    roots.push(node);
+  });
+
+  return roots;
+}
+
 function appendReplyToTree(
   comments: AdminComment[],
   targetId: string | number,
@@ -165,6 +221,16 @@ type AdminCommentItemProps = {
   onSubmitReply: (id: string | number) => void;
 };
 
+function getRoleLabel(comment: AdminComment, depth: number) {
+  if (depth === 0) {
+    return "User";
+  }
+  if (comment.adminReply) {
+    return "Admin Reply";
+  }
+  return "User Reply";
+}
+
 function AdminCommentItem({
   comment,
   depth = 0,
@@ -184,88 +250,109 @@ function AdminCommentItem({
   const submitState = replySubmitStateById[commentId] ?? "idle";
   const replyDraft = replyDraftById[commentId] ?? "";
   const replyError = replyErrorById[commentId] ?? "";
+  const roleLabel = getRoleLabel(comment, depth);
+  const roleClass = roleLabel === "Admin Reply"
+    ? "is-admin-reply"
+    : roleLabel === "User Reply"
+      ? "is-user-reply"
+      : "is-user";
+  const showPostLabel = depth === 0;
 
   return (
-    <div className="stack" style={{ marginLeft: `${depth * 16}px` }}>
-      <div className="admin-row">
-        <div>
-          <div className="admin-row-title">
-            {comment.name}
-            {comment.email ? ` (${comment.email})` : ""}
-            {comment.adminReply ? " · Admin Reply" : ""}
-          </div>
-          <div className="small">Post: {String(comment.postId)}</div>
-          {comment.parentId !== null && comment.parentId !== undefined ? (
-            <div className="small">Parent: {String(comment.parentId)}</div>
-          ) : null}
-          {comment.status ? <div className="small">Status: {comment.status}</div> : null}
-          {typeof comment.notifyReply === "boolean" ? (
-            <div className="small">Notify Reply: {comment.notifyReply ? "Yes" : "No"}</div>
-          ) : null}
-          {comment.websiteUrl ? (
-            <div className="small">
-              Website:{" "}
-              {safeWebsiteUrl ? (
-                <a href={safeWebsiteUrl} target="_blank" rel="noreferrer">
-                  {comment.websiteUrl}
-                </a>
+    <div
+      className="admin-comment-thread"
+      style={{ marginLeft: `${depth * 20}px` }}
+    >
+      {showPostLabel ? (
+        <div className="admin-comment-post-label">Post #{String(comment.postId)}</div>
+      ) : null}
+      <div className={`admin-comment-node ${depth > 0 ? "is-child" : "is-root"}`}>
+        {depth > 0 ? <div className="admin-comment-branch">└─</div> : null}
+        <div className="admin-row">
+          <div>
+            <div className="admin-comment-meta">
+              <span className={`admin-comment-badge ${roleClass}`}>[{roleLabel}]</span>
+              <span className="admin-row-title">
+                {comment.name}
+                {comment.email ? ` (${comment.email})` : ""}
+              </span>
+            </div>
+            {comment.status ? <div className="small">Status: {comment.status}</div> : null}
+            {typeof comment.notifyReply === "boolean" ? (
+              <div className="small">Notify Reply: {comment.notifyReply ? "Yes" : "No"}</div>
+            ) : null}
+            {comment.websiteUrl ? (
+              <div className="small">
+                Website:{" "}
+                {safeWebsiteUrl ? (
+                  <a href={safeWebsiteUrl} target="_blank" rel="noreferrer">
+                    {comment.websiteUrl}
+                  </a>
+                ) : (
+                  "Invalid URL"
+                )}
+              </div>
+            ) : null}
+            <div className="small">Created: {formatDateTime(comment.createdAt) || "-"}</div>
+            {comment.repliedAt ? (
+              <div className="small">Replied: {formatDateTime(comment.repliedAt)}</div>
+            ) : null}
+            {comment.parentId !== null && comment.parentId !== undefined ? (
+              <div className="small admin-comment-parent">reply to #{String(comment.parentId)}</div>
+            ) : null}
+            <div>{comment.message}</div>
+            <div className="admin-row-actions" style={{ marginTop: "8px" }}>
+              {isReplying ? (
+                <button
+                  className="button ghost"
+                  type="button"
+                  onClick={onCancelReply}
+                  disabled={submitState === "submitting"}
+                >
+                  Hide Reply Box
+                </button>
               ) : (
-                "Invalid URL"
+                <button
+                  className="button ghost"
+                  type="button"
+                  onClick={() => onStartReply(comment.id)}
+                >
+                  Reply
+                </button>
               )}
             </div>
-          ) : null}
-          <div className="small">Created: {formatDateTime(comment.createdAt) || "-"}</div>
-          {comment.repliedAt ? (
-            <div className="small">Replied: {formatDateTime(comment.repliedAt)}</div>
-          ) : null}
-          <div>{comment.message}</div>
-          <div className="admin-row-actions" style={{ marginTop: "8px" }}>
             {isReplying ? (
-              <button
-                className="button ghost"
-                type="button"
-                onClick={onCancelReply}
-                disabled={submitState === "submitting"}
-              >
-                Hide Reply Box
-              </button>
-            ) : (
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => onStartReply(comment.id)}
-              >
-                Reply
-              </button>
-            )}
+              <AdminReplyComposer
+                value={replyDraft}
+                submitState={submitState}
+                error={replyError}
+                onChange={(value) => onChangeReply(comment.id, value)}
+                onCancel={onCancelReply}
+                onSubmit={() => onSubmitReply(comment.id)}
+              />
+            ) : null}
           </div>
-          {isReplying ? (
-            <AdminReplyComposer
-              value={replyDraft}
-              submitState={submitState}
-              error={replyError}
-              onChange={(value) => onChangeReply(comment.id, value)}
-              onCancel={onCancelReply}
-              onSubmit={() => onSubmitReply(comment.id)}
-            />
-          ) : null}
         </div>
       </div>
-      {replies.map((reply) => (
-        <AdminCommentItem
-          key={String(reply.id)}
-          comment={reply}
-          depth={depth + 1}
-          activeReplyId={activeReplyId}
-          replyDraftById={replyDraftById}
-          replySubmitStateById={replySubmitStateById}
-          replyErrorById={replyErrorById}
-          onStartReply={onStartReply}
-          onCancelReply={onCancelReply}
-          onChangeReply={onChangeReply}
-          onSubmitReply={onSubmitReply}
-        />
-      ))}
+      {replies.length ? (
+        <div className="admin-comment-children">
+          {replies.map((reply) => (
+            <AdminCommentItem
+              key={String(reply.id)}
+              comment={reply}
+              depth={depth + 1}
+              activeReplyId={activeReplyId}
+              replyDraftById={replyDraftById}
+              replySubmitStateById={replySubmitStateById}
+              replyErrorById={replyErrorById}
+              onStartReply={onStartReply}
+              onCancelReply={onCancelReply}
+              onChangeReply={onChangeReply}
+              onSubmitReply={onSubmitReply}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -294,7 +381,8 @@ export function AdminCommentsPage() {
 
     try {
       const data = await api.listComments(token);
-      setComments(data.map((item) => normalizeAdminComment(item)));
+      const normalized = data.map((item) => normalizeAdminComment(item));
+      setComments(buildCommentTree(normalized));
       setState("ready");
       logger.info("Loaded admin comments", { count: data.length });
     } catch (err) {
@@ -389,7 +477,7 @@ export function AdminCommentsPage() {
           {state === "loading" ? <div className="small">Loading...</div> : null}
           {state === "error" && error ? <div className="form-status error">{error}</div> : null}
 
-          <div className="admin-table">
+          <div className="admin-table admin-thread-list">
             {comments.map((comment) => (
               <AdminCommentItem
                 key={String(comment.id)}

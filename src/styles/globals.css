@@ -845,6 +845,96 @@ section:last-of-type {
   flex-wrap: wrap;
 }
 
+.admin-thread-list {
+  gap: var(--space-4);
+}
+
+.admin-comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-comment-post-label {
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.admin-comment-node {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.admin-comment-node .admin-row {
+  width: 100%;
+}
+
+.admin-comment-node.is-root .admin-row {
+  background: var(--color-surface);
+  border-color: var(--color-text);
+}
+
+.admin-comment-node.is-child .admin-row {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.admin-comment-branch {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  min-width: 1.4rem;
+  padding-top: 2px;
+}
+
+.admin-comment-children {
+  border-left: 2px solid var(--color-border);
+  padding-left: var(--space-3);
+  margin-left: var(--space-2);
+}
+
+.admin-comment-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.admin-comment-badge {
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.admin-comment-badge.is-user {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.admin-comment-badge.is-admin-reply {
+  color: #166534;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.admin-comment-badge.is-user-reply {
+  color: #7c2d12;
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.admin-comment-parent {
+  font-style: italic;
+}
+
 .admin-auth {
   min-height: 100vh;
   display: grid;
@@ -952,5 +1042,14 @@ section:last-of-type {
   .admin-todo-item {
     grid-template-columns: 1fr;
     align-items: flex-start;
+  }
+
+  .admin-comment-thread {
+    margin-left: 0 !important;
+  }
+
+  .admin-comment-children {
+    margin-left: 0;
+    padding-left: var(--space-2);
   }
 }
