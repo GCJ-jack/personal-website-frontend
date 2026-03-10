@@ -25,6 +25,7 @@ type PublicBlogListResponse = {
 type PublicComment = {
   id: string | number;
   postId: string | number;
+  parentId?: string | number | null;
   name: string;
   websiteUrl?: string | null;
   message: string;
@@ -148,11 +149,15 @@ function PublicCommentItem({
   postId,
   comment,
   depth = 0,
+  parentId,
+  parentName,
   onReply,
 }: {
   postId: string;
   comment: PublicComment;
   depth?: number;
+  parentId?: string | number | null;
+  parentName?: string;
   onReply: (postId: string, parentId: string | number, parentName: string) => void;
 }) {
   const replies = comment.replies ?? [];
@@ -160,7 +165,7 @@ function PublicCommentItem({
 
   return (
     <div className="stack" style={{ marginLeft: `${depth * 16}px` }}>
-      <article className="card stack">
+      <article id={`comment-${String(comment.id)}`} className="card stack">
         <div className="small">
           {safeWebsiteUrl ? (
             <a href={safeWebsiteUrl} target="_blank" rel="noreferrer">
@@ -172,6 +177,14 @@ function PublicCommentItem({
           {comment.adminReply ? " · Admin Reply" : ""}
           {comment.createdAt ? ` · ${formatDateTime(comment.createdAt)}` : ""}
         </div>
+        {parentId !== null && parentId !== undefined && parentName ? (
+          <div className="small">
+            Replying to{" "}
+            <a href={`#comment-${String(parentId)}`}>
+              @{parentName}
+            </a>
+          </div>
+        ) : null}
         <p>{comment.message}</p>
         <div>
           <button
@@ -189,6 +202,8 @@ function PublicCommentItem({
           postId={postId}
           comment={reply}
           depth={depth + 1}
+          parentId={comment.id}
+          parentName={comment.name}
           onReply={onReply}
         />
       ))}
