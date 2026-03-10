@@ -16,8 +16,10 @@ type PublicBlogPost = {
 };
 
 type PublicBlogListResponse = {
-  ok: true;
-  data: PublicBlogPost[];
+  ok: boolean;
+  data?: PublicBlogPost[];
+  error?: string | null;
+  message?: string | null;
 };
 
 type PublicComment = {
@@ -32,22 +34,28 @@ type PublicComment = {
 };
 
 type PublicCommentListResponse = {
-  ok: true;
-  data: PublicComment[];
+  ok: boolean;
+  data?: PublicComment[];
+  error?: string | null;
+  message?: string | null;
 };
 
 type SubscribeCreateResponse = {
-  ok: true;
+  ok: boolean;
   id?: string;
   numericId?: number;
   createdAt?: string | null;
+  error?: string | null;
+  message?: string | null;
 };
 
 type PublicCommentCreateResponse = {
-  ok: true;
+  ok: boolean;
   id?: string;
   numericId?: number;
   createdAt?: string | null;
+  error?: string | null;
+  message?: string | null;
 };
 
 type CommentSubmitState = "idle" | "submitting" | "success" | "error";
@@ -63,7 +71,7 @@ function resolveSubscriberId(payload: SubscribeCreateResponse) {
 }
 
 function normalizePosts(payload: PublicBlogListResponse | PublicBlogPost[]) {
-  return Array.isArray(payload) ? payload : payload.data;
+  return Array.isArray(payload) ? payload : (Array.isArray(payload.data) ? payload.data : []);
 }
 
 function normalizeComment(comment: PublicComment): PublicComment {
@@ -78,6 +86,30 @@ function normalizeComment(comment: PublicComment): PublicComment {
 function normalizeComments(payload: PublicCommentListResponse | PublicComment[]) {
   const list = Array.isArray(payload) ? payload : payload.data;
   return Array.isArray(list) ? list.map((comment) => normalizeComment(comment)) : [];
+}
+
+function getApiErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+  const value = payload as { message?: unknown; error?: unknown };
+  if (typeof value.message === "string" && value.message.trim()) {
+    return value.message;
+  }
+  if (typeof value.error === "string" && value.error.trim()) {
+    return value.error;
+  }
+  return fallback;
+}
+
+function ensureApiOk(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object" || !("ok" in payload)) {
+    return;
+  }
+  const value = payload as { ok?: unknown };
+  if (value.ok === false) {
+    throw new Error(getApiErrorMessage(payload, fallback));
+  }
 }
 
 function buildCommentsUrl(baseUrl: string, postId: string | number) {
@@ -112,7 +144,17 @@ function toSafeHttpUrl(value?: string | null) {
   }
 }
 
-function PublicCommentItem({ comment, depth = 0 }: { comment: PublicComment; depth?: number }) {
+function PublicCommentItem({
+  postId,
+  comment,
+  depth = 0,
+  onReply,
+}: {
+  postId: string;
+  comment: PublicComment;
+  depth?: number;
+  onReply: (postId: string, parentId: string | number, parentName: string) => void;
+}) {
   const replies = comment.replies ?? [];
   const safeWebsiteUrl = toSafeHttpUrl(comment.websiteUrl);
 
@@ -131,9 +173,24 @@ function PublicCommentItem({ comment, depth = 0 }: { comment: PublicComment; dep
           {comment.createdAt ? ` · ${formatDateTime(comment.createdAt)}` : ""}
         </div>
         <p>{comment.message}</p>
+        <div>
+          <button
+            className="button ghost"
+            type="button"
+            onClick={() => onReply(postId, comment.id, comment.name)}
+          >
+            Reply
+          </button>
+        </div>
       </article>
       {replies.map((reply) => (
-        <PublicCommentItem key={String(reply.id)} comment={reply} depth={depth + 1} />
+        <PublicCommentItem
+          key={String(reply.id)}
+          postId={postId}
+          comment={reply}
+          depth={depth + 1}
+          onReply={onReply}
+        />
       ))}
     </div>
   );
@@ -149,6 +206,9 @@ export function BlogPage() {
   const [commentsByPostId, setCommentsByPostId] = useState<Record<string, PublicComment[]>>({});
   const [commentSubmitStateByPostId, setCommentSubmitStateByPostId] = useState<Record<string, CommentSubmitState>>({});
   const [commentSubmitMessageByPostId, setCommentSubmitMessageByPostId] = useState<Record<string, string>>({});
+  const [replyTargetByPostId, setReplyTargetByPostId] = useState<
+    Record<string, { parentId: string | number; parentName: string } | null>
+  >({});
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "success" | "error">("idle");
   const [lastSubscriberId, setLastSubscriberId] = useState<string | null>(null);
   const commentsApiUrl = (import.meta.env.VITE_COMMENTS_API_URL as string | undefined) ?? "/api/comments";
@@ -158,7 +218,11 @@ export function BlogPage() {
     if (!response.ok) {
       throw new Error(`Failed comments request for post ${String(postId)}: ${response.status}`);
     }
-    const payload = (await response.json()) as PublicCommentListResponse | PublicComment[];
+    const payload = (await response.json().catch(() => null)) as PublicCommentListResponse | PublicComment[] | null;
+    if (!payload) {
+      throw new Error("Failed to load comments.");
+    }
+    ensureApiOk(payload, "Failed to load comments.");
     return normalizeComments(payload);
   }, [commentsApiUrl]);
 
@@ -169,6 +233,7 @@ export function BlogPage() {
     fetch(apiUrl, { method: "GET" })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
       .then((payload: PublicBlogListResponse | PublicBlogPost[]) => {
+        ensureApiOk(payload, "Failed to load posts.");
         const data = normalizePosts(payload);
         setPosts(Array.isArray(data) ? data : []);
         setPostsState("ready");
@@ -253,6 +318,20 @@ export function BlogPage() {
     };
   }, [posts, postsState, commentsApiUrl, fetchCommentsForPost]);
 
+  const handleStartReply = useCallback((postId: string, parentId: string | number, parentName: string) => {
+    setReplyTargetByPostId((prev) => ({
+      ...prev,
+      [postId]: { parentId, parentName },
+    }));
+  }, []);
+
+  const handleCancelReply = useCallback((postId: string) => {
+    setReplyTargetByPostId((prev) => ({
+      ...prev,
+      [postId]: null,
+    }));
+  }, []);
+
   const handleCommentSubmit = async (postId: string, event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -263,6 +342,7 @@ export function BlogPage() {
     const websiteUrl = String(formData.get("websiteUrl") ?? "").trim();
     const message = String(formData.get("message") ?? "").trim();
     const notifyReply = formData.get("notifyReply") === "on";
+    const replyTarget = replyTargetByPostId[postId] ?? null;
 
     if (!name || !message) {
       setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "error" }));
@@ -281,7 +361,7 @@ export function BlogPage() {
         },
         body: JSON.stringify({
           postId,
-          parentId: null,
+          parentId: replyTarget ? replyTarget.parentId : null,
           name,
           email: email || undefined,
           websiteUrl: websiteUrl || undefined,
@@ -298,6 +378,7 @@ export function BlogPage() {
       }
 
       const createdPayload = (await response.json().catch(() => null)) as PublicCommentCreateResponse | null;
+      ensureApiOk(createdPayload, "Failed to submit comment.");
       if (createdPayload?.numericId !== undefined) {
         logger.info("Comment created with numericId", { postId, numericId: createdPayload.numericId });
       }
@@ -306,11 +387,13 @@ export function BlogPage() {
       setCommentsByPostId((prev) => ({ ...prev, [postId]: comments }));
       setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "success" }));
       setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Comment submitted." }));
+      setReplyTargetByPostId((prev) => ({ ...prev, [postId]: null }));
       form.reset();
       logger.info("Submit comment succeeded", { postId });
     } catch (err) {
+      const errorMessage = err instanceof Error && err.message ? err.message : "Failed to submit comment.";
       setCommentSubmitStateByPostId((prev) => ({ ...prev, [postId]: "error" }));
-      setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: "Failed to submit comment." }));
+      setCommentSubmitMessageByPostId((prev) => ({ ...prev, [postId]: errorMessage }));
       logger.error("Submit comment exception", { postId, err });
     }
   };
@@ -343,6 +426,7 @@ export function BlogPage() {
 
       if (response.ok) {
         const payload = (await response.json().catch(() => null)) as SubscribeCreateResponse | null;
+        ensureApiOk(payload, "Subscription failed. Try again.");
         if (payload?.ok) {
           setLastSubscriberId(resolveSubscriberId(payload));
         }
@@ -413,9 +497,30 @@ export function BlogPage() {
                   <p className="small">No comments yet.</p>
                 ) : null}
                 {(commentsByPostId[String(post.id)] ?? []).map((comment) => (
-                  <PublicCommentItem key={String(comment.id)} comment={comment} />
+                  <PublicCommentItem
+                    key={String(comment.id)}
+                    postId={String(post.id)}
+                    comment={comment}
+                    onReply={handleStartReply}
+                  />
                 ))}
                 <form className="form" onSubmit={(event) => void handleCommentSubmit(String(post.id), event)}>
+                  {replyTargetByPostId[String(post.id)] ? (
+                    <div className="card" style={{ marginBottom: "8px" }}>
+                      <div className="small">
+                        Replying to @{replyTargetByPostId[String(post.id)]?.parentName}
+                      </div>
+                      <div style={{ marginTop: "8px" }}>
+                        <button
+                          className="button ghost"
+                          type="button"
+                          onClick={() => handleCancelReply(String(post.id))}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   <label className="form-field">
                     <span>Name</span>
                     <input name="name" type="text" placeholder="Your name" required />

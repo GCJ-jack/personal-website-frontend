@@ -490,11 +490,18 @@ If `VITE_PROJECTS_API_URL` is not configured, frontend fallback is an empty list
 ```
 {
   "postId": 1,
+  "parentId": null,
   "name": "Your Name",
   "email": "you@example.com",
   "message": "Your message here."
 }
 ```
+
+`parentId` is optional:
+- `null` or omitted: create a top-level comment
+- non-null: create a reply under the target parent comment
+- nested replies are supported at multiple levels
+- parent comment must exist and belong to the same `postId`
 
 **Response (JSON)**
 ```

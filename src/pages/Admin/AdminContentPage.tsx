@@ -401,7 +401,7 @@ export function AdminContentPage() {
       const updated = await api.updateProject(projectEditingId, payload, token);
       setProjects((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const { id, ...createPayload } = payload;
+      const createPayload = { ...payload, id: undefined };
       const created = await api.createProject(createPayload, token);
       setProjects((prev) => [created, ...prev]);
     }
@@ -432,7 +432,7 @@ export function AdminContentPage() {
       const updated = await api.updateLiveVideo(liveEditingId, payload, token);
       setLiveVideos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const { id, ...createPayload } = payload;
+      const createPayload = { ...payload, id: undefined };
       const created = await api.createLiveVideo(createPayload, token);
       setLiveVideos((prev) => [created, ...prev]);
     }
@@ -461,7 +461,7 @@ export function AdminContentPage() {
       const updated = await api.updateMindmap(mindmapEditingId, payload, token);
       setMindmaps((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } else {
-      const { id, ...createPayload } = payload;
+      const createPayload = { ...payload, id: undefined };
       const created = await api.createMindmap(createPayload, token);
       setMindmaps((prev) => [created, ...prev]);
     }
@@ -502,7 +502,7 @@ export function AdminContentPage() {
         const updated = await api.updateBlogPost(blogEditingId, payload, token);
         setBlogPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } else {
-        const { id, ...createPayload } = payload;
+        const createPayload = { ...payload, id: undefined };
         const created = await api.createBlogPost(createPayload, token);
         setBlogPosts((prev) => [created, ...prev]);
       }
