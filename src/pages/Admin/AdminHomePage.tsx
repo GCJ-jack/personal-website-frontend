@@ -2,21 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../../app/admin/auth/useAdminAuth";
 import { createAdminContentApi } from "../../app/admin/data/adminContentApi";
+import { createTodo, deleteTodo, fetchTodos, updateTodo, type TodoItem, type TodoPriority } from "../../api/todoApi";
 import { adminNavItems } from "../../data/adminNavigation";
 import { createLogger } from "../../lib/logger";
 
 type LoadState = "idle" | "ready" | "error";
-type TodoPriority = "high" | "medium" | "low";
+type TodoLoadState = "loading" | "ready" | "error";
 type TodoFilter = "all" | "active" | "done";
-
-type TodoItem = {
-  id: string;
-  title: string;
-  done: boolean;
-  priority: TodoPriority;
-  dueDate?: string;
-  createdAt: string;
-};
 
 type OverviewMetrics = {
   projectsCount: number;
@@ -37,7 +29,6 @@ const initialMetrics: OverviewMetrics = {
 };
 
 const logger = createLogger("AdminHomePage");
-const TODO_STORAGE_KEY = "admin_my_todos_v1";
 
 const priorityLabel: Record<TodoPriority, string> = {
   high: "High",
@@ -83,33 +74,6 @@ function getPriorityRank(priority: TodoPriority) {
   return 2;
 }
 
-function loadTodosFromStorage(): TodoItem[] {
-  try {
-    const raw = window.localStorage.getItem(TODO_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((item) => (
-      item
-      && typeof item === "object"
-      && typeof (item as { id?: unknown }).id === "string"
-      && typeof (item as { title?: unknown }).title === "string"
-      && typeof (item as { done?: unknown }).done === "boolean"
-      && (item as { priority?: unknown }).priority
-      && ["high", "medium", "low"].includes((item as { priority: string }).priority)
-      && typeof (item as { createdAt?: unknown }).createdAt === "string"
-    )) as TodoItem[];
-  } catch {
-    return [];
-  }
-}
-
 export function AdminHomePage() {
   const { token, isConfigured } = useAdminAuth();
   const apiUrl = import.meta.env.VITE_ADMIN_API_URL as string | undefined;
@@ -123,11 +87,12 @@ export function AdminHomePage() {
   const [todoPriority, setTodoPriority] = useState<TodoPriority>("medium");
   const [todoDueDate, setTodoDueDate] = useState("");
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("all");
-  const [todos, setTodos] = useState<TodoItem[]>(() => loadTodosFromStorage());
-
-  useEffect(() => {
-    window.localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
-  }, [todos]);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoState, setTodoState] = useState<TodoLoadState>("loading");
+  const [todoError, setTodoError] = useState<string | null>(null);
+  const [todoSubmitting, setTodoSubmitting] = useState(false);
+  const [todoUpdatingId, setTodoUpdatingId] = useState<number | null>(null);
+  const [todoDeletingId, setTodoDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!api || !isConfigured) {
@@ -183,6 +148,31 @@ export function AdminHomePage() {
       });
   }, [api, isConfigured, token]);
 
+  useEffect(() => {
+    if (!isConfigured) {
+      setTodos([]);
+      setTodoState("ready");
+      setTodoError(null);
+      return;
+    }
+
+    setTodoState("loading");
+    setTodoError(null);
+    logger.info("Loading admin todos");
+    fetchTodos()
+      .then((data) => {
+        setTodos(data);
+        setTodoState("ready");
+        logger.info("Loaded admin todos", { count: data.length });
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : "Failed to load todos.";
+        setTodoError(message);
+        setTodoState("error");
+        logger.error("Failed to load admin todos", err);
+      });
+  }, [isConfigured]);
+
   const filteredTodos = useMemo(() => {
     const base = todos.filter((todo) => {
       if (todoFilter === "all") {
@@ -204,7 +194,13 @@ export function AdminHomePage() {
         return priorityDiff;
       }
 
-      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+      const aCreatedAt = a.createdAt ? Date.parse(a.createdAt) : NaN;
+      const bCreatedAt = b.createdAt ? Date.parse(b.createdAt) : NaN;
+      if (!Number.isNaN(aCreatedAt) && !Number.isNaN(bCreatedAt)) {
+        return bCreatedAt - aCreatedAt;
+      }
+
+      return b.id - a.id;
     });
   }, [todos, todoFilter]);
 
@@ -214,35 +210,76 @@ export function AdminHomePage() {
     done: todos.filter((todo) => todo.done).length,
   }), [todos]);
 
-  const handleAddTodo = () => {
+  const handleAddTodo = async () => {
     const title = todoTitle.trim();
     if (!title) {
       return;
     }
 
-    const next: TodoItem = {
-      id: `todo_${Date.now()}`,
-      title,
-      done: false,
-      priority: todoPriority,
-      dueDate: todoDueDate || undefined,
-      createdAt: new Date().toISOString(),
-    };
-
-    setTodos((prev) => [next, ...prev]);
-    setTodoTitle("");
-    setTodoPriority("medium");
-    setTodoDueDate("");
+    setTodoSubmitting(true);
+    setTodoError(null);
+    try {
+      const created = await createTodo({
+        title,
+        priority: todoPriority,
+        dueDate: todoDueDate || null,
+      });
+      setTodos((prev) => [created, ...prev]);
+      setTodoTitle("");
+      setTodoPriority("medium");
+      setTodoDueDate("");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create todo.";
+      setTodoError(message);
+      logger.error("Failed to create todo", err);
+    } finally {
+      setTodoSubmitting(false);
+    }
   };
 
-  const toggleTodo = (id: string) => {
+  const toggleTodo = async (id: number) => {
+    const target = todos.find((todo) => todo.id === id);
+    if (!target) {
+      return;
+    }
+    const nextDone = !target.done;
+    setTodoError(null);
+    setTodoUpdatingId(id);
     setTodos((prev) => prev.map((todo) => (
-      todo.id === id ? { ...todo, done: !todo.done } : todo
+      todo.id === id ? { ...todo, done: nextDone } : todo
     )));
+    try {
+      const updated = await updateTodo(id, { done: nextDone });
+      setTodos((prev) => prev.map((todo) => (
+        todo.id === id ? { ...todo, ...updated } : todo
+      )));
+    } catch (err) {
+      setTodos((prev) => prev.map((todo) => (
+        todo.id === id ? { ...todo, done: target.done } : todo
+      )));
+      const message = err instanceof Error ? err.message : "Failed to update todo.";
+      setTodoError(message);
+      logger.error("Failed to update todo", err);
+    } finally {
+      setTodoUpdatingId(null);
+    }
   };
 
-  const removeTodo = (id: string) => {
+  const removeTodo = async (id: number) => {
+    const snapshot = todos;
+    setTodoError(null);
+    setTodoDeletingId(id);
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
+    try {
+      await deleteTodo(id);
+    } catch (err) {
+      setTodos(snapshot);
+      const message = err instanceof Error ? err.message : "Failed to delete todo.";
+      setTodoError(message);
+      logger.error("Failed to delete todo", err);
+    } finally {
+      setTodoDeletingId(null);
+    }
   };
 
   const contentTotal = metrics.projectsCount + metrics.liveVideosCount + metrics.mindmapsCount + metrics.blogPostsCount;
@@ -355,6 +392,9 @@ export function AdminHomePage() {
             />
             <button type="button" className="button" onClick={handleAddTodo}>Add</button>
           </div>
+          {todoState === "loading" ? <div className="small">Loading todos...</div> : null}
+          {todoState === "error" && todoError ? <div className="form-status error">{todoError}</div> : null}
+          {todoError && todoState !== "error" ? <div className="form-status error">{todoError}</div> : null}
 
           <div className="admin-todo-filters">
             <button
@@ -387,6 +427,7 @@ export function AdminHomePage() {
                   <input
                     type="checkbox"
                     checked={todo.done}
+                    disabled={todoUpdatingId === todo.id}
                     onChange={() => toggleTodo(todo.id)}
                   />
                   <span>{todo.title}</span>
@@ -400,6 +441,7 @@ export function AdminHomePage() {
                 <button
                   type="button"
                   className="button ghost"
+                  disabled={todoDeletingId === todo.id || todoSubmitting}
                   onClick={() => removeTodo(todo.id)}
                 >
                   Delete
