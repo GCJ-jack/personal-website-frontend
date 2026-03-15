@@ -47,6 +47,8 @@ jobs:
           username: ${{ secrets.ECS_USER }}
           key: ${{ secrets.ECS_SSH_KEY }}
           port: ${{ secrets.ECS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 30m
           script: |
             set -e
             cd /opt/frontend
