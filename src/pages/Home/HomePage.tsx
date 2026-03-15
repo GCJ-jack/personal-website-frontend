@@ -10,9 +10,9 @@ import mobileIcon from "../../assets/phone app develop.png";
 export function HomePage() {
   return (
     <Page
-      title="郭超军"
+      title="郭杰克"
       subtitle="Software Engineer"
-      intro="你好，我是郭超军，这是我的个人网站。"
+      intro="你好，我是郭杰克，这是我的个人网站。"
     >
       <section>
         <div className="card stack">
@@ -29,7 +29,7 @@ export function HomePage() {
                 这是一个关于我的个人网站，是在我学习计算机接近四年之后，利用早已生疏的网页技术建立的网页。可以视作我的博客，这里也许会记载关于我的一些事情、一些感受、一些我去过的地方、看的演出、听的音乐、吃的食物，可能会是关于我的一切。如果感兴趣的话，就经常来看吧。同时也存在一些我的其他社交媒体链接。（其中可能会有一些我的观点，无意伤害任何人，求同存异，Peace and Love）
               </p>
               <div className="stack">
-                <div>全名：郭超军</div>
+                <div>全名：郭杰克</div>
                 <div>国家：中国</div>
                 <div>暂住：中国</div>
               </div>
