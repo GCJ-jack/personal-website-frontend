@@ -53,5 +53,6 @@ jobs:
             set -e
             cd /opt/frontend
             docker compose pull
+            docker rm -f my-frontend || true
             docker compose up -d
             docker image prune -f
